@@ -1,3 +1,13 @@
-__pycache__
-.git
-.venv/
+# Python
+__pycache__/
+*.pyc
+env/
+venv/
+mlartifacts/
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
