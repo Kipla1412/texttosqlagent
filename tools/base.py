@@ -6,7 +6,6 @@ from enum import Enum
 from typing import Any
 from dataclasses import dataclass, field
 from pydantic.json_schema import model_json_schema
-
 from config.config import Config
 
 

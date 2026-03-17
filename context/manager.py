@@ -92,7 +92,9 @@ class ContextManager:
         )
 
         self._messages.append(item)
-
+   
+    # retrieval: role, or knowledgebase
+    
     def get_messages(self) -> list[dict[str, Any]]:
         messages = []
 

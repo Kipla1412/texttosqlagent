@@ -9,7 +9,7 @@ class ReadFileParams(BaseModel):
 
     path: str = Field(
         ...,
-        description="Path to the file to read (relative to working directory or absolute)",
+        description="Path to the file to read",
     )
 
     offset: int = Field(
@@ -40,7 +40,17 @@ class ReadFileTool(Tool):
     MAX_OUTPUT_TOKENS = 25000
 
     async def execute(self, invocation: ToolInvocation) -> ToolResult:
-        params = ReadFileParams(**invocation.params)
+        try:
+            # Check if invocation.params is a string and needs parsing
+            if isinstance(invocation.params, str):
+                params_dict = json.loads(invocation.params)
+            else:
+                params_dict = invocation.params
+                
+            params = ReadFileParams(**params_dict)
+        except Exception as e:
+            return ToolResult.error_result(f"Argument Parsing Error: {e}. Received: {invocation.params}")
+        # params = ReadFileParams(**invocation.params)
         path = resolve_path(invocation.cwd, params.path)
 
         if not path.exists():

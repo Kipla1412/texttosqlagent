@@ -9,7 +9,8 @@ from tools.builtin.todo import TodosTool
 from tools.builtin.web_fetch import WebFetchTool
 from tools.builtin.web_search import WebSearchTool
 from tools.builtin.write_file import WriteFileTool
-
+# from tools.builtin.hybridsearch import ArxivHybridSearchTool
+# from tools.builtin.embedding import JinaEmbeddingTool
 __all__ = [
     "ReadFileTool",
     "WriteFileTool",
@@ -22,6 +23,8 @@ __all__ = [
     "WebFetchTool",
     "TodosTool",
     "MemoryTool",
+    # "ArxivHybridSearchTool",
+    # "JinaEmbeddingTool"
 ]
 
 
@@ -38,4 +41,6 @@ def get_all_builtin_tools() -> list[type]:
         WebFetchTool,
         TodosTool,
         MemoryTool,
+        # ArxivHybridSearchTool,
+        # JinaEmbeddingTool,
     ]

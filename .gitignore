@@ -11,3 +11,13 @@ mlartifacts/
 # OS
 .DS_Store
 Thumbs.db
+
+# MLflow
+mlruns/
+mlflow.db
+
+# Sessions
+session_*.json
+
+# Data
+data/

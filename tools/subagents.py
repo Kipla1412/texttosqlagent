@@ -4,7 +4,9 @@ from config.config import Config
 from tools.base import Tool, ToolInvocation, ToolResult
 from dataclasses import dataclass
 from pydantic import BaseModel, Field
+import logging
 
+logger = logging.getLogger(__name__)
 
 class SubagentParams(BaseModel):
     goal: str = Field(
@@ -64,6 +66,7 @@ class SubagentTool(Tool):
 
         IMPORTANT:
         - Focus only on completing the specified task
+        - Use tools to gather information instead of guessing
         - Do not engage in unrelated actions
         - Once you have completed the task or have the answer, provide your final response
         - Be concise and direct in your output
@@ -76,33 +79,44 @@ class SubagentTool(Tool):
 
         try:
             async with Agent(subagent_config) as agent:
+                loop = asyncio.get_running_loop()
                 deadline = (
-                    asyncio.get_event_loop().time() + self.definition.timeout_seconds
+                    loop.time() + self.definition.timeout_seconds
                 )
 
                 async for event in agent.run(prompt):
-                    if asyncio.get_event_loop().time() > deadline:
+                    if loop.time() > deadline:
                         terminate_response = "timeout"
                         final_response = "Sub-agent timed out"
                         break
 
                     if event.type == AgentEventType.TOOL_CALL_START:
-                        tool_calls.append(event.data.get("name"))
+                        tool_name = event.data.get("name")
+                        if tool_name and tool_name not in tool_calls:
+                            tool_calls.append(tool_name)
+
                     elif event.type == AgentEventType.TEXT_COMPLETE:
                         final_response = event.data.get("content")
+                    
                     elif event.type == AgentEventType.AGENT_END:
                         if final_response is None:
                             final_response = event.data.get("response")
+                    
                     elif event.type == AgentEventType.AGENT_ERROR:
                         terminate_response = "error"
                         error = event.data.get("error", "Unknown")
                         final_response = f"Sub-agent error: {error}"
                         break
+
         except Exception as e:
+            logger.exception("Sub-agent execution failed")
             terminate_response = "error"
             error = str(e)
             final_response = f"Sub-agent failed: {e}"
-
+        
+        if not final_response:
+            final_response = "Sub-agent completed but returned no textual response."
+        
         result = f"""Sub-agent '{self.definition.name}' completed. 
         Termination: {terminate_response}
         Tools called: {', '.join(tool_calls) if tool_calls else 'None'}
@@ -119,30 +133,90 @@ class SubagentTool(Tool):
 
 CODEBASE_INVESTIGATOR = SubagentDefinition(
     name="codebase_investigator",
-    description="Investigates the codebase to answer questions about code structure, patterns, and implementations",
-    goal_prompt="""You are a codebase investigation specialist.
-Your job is to explore and understand code to answer questions.
-Use read_file, grep, glob, and list_dir to investigate.
-Do NOT modify any files.""",
-    allowed_tools=["read_file", "grep", "glob", "list_dir"],
+    description="Analyzes codebase structure and identifies issues.",
+    goal_prompt="""You are a Codebase Investigator. 
+Your job is to analyze the codebase and identify:
+1. Code structure issues
+2. Dependency problems
+3. Performance bottlenecks
+4. Security vulnerabilities
+5. Documentation gaps
+
+Use tools like 'read_file', 'list_dir', 'grep' to investigate.""",
+    allowed_tools=["read_file", "list_dir", "grep", "write_file"],
+    max_turns=10,
 )
 
 CODE_REVIEWER = SubagentDefinition(
     name="code_reviewer",
-    description="Reviews code changes and provides feedback on quality, bugs, and improvements",
-    goal_prompt="""You are a code review specialist.
-Your job is to review code and provide constructive feedback.
-Look for bugs, code smells, security issues, and improvement opportunities.
-Use read_file, list_dir and grep to examine the code.
-Do NOT modify any files.""",
-    allowed_tools=["read_file", "grep", "list_dir"],
-    max_turns=10,
-    timeout_seconds=300,
+    description="Reviews code quality and suggests improvements.",
+    goal_prompt="""You are a Code Reviewer. 
+Your job is to:
+1. Review code for best practices
+2. Identify potential bugs
+3. Suggest improvements
+4. Check for security issues
+5. Ensure code readability
+
+Focus on maintainability, performance, and security.""",
+    allowed_tools=["read_file", "write_file", "edit_file"],
+    max_turns=8,
 )
 
+# PAPER_RESEARCHER = SubagentDefinition(
+#     name="paper_researcher",
+#     description="Specialized in finding and analyzing Arxiv papers using semantic hybrid search.",
+#     goal_prompt="""You are an expert Research Assistant. 
+# Your job is to find relevant academic papers. 
+# To do this, you MUST:
+# 1. Use 'jina_embedding' to convert the user's research topic into a vector.
+# 2. Use 'arxiv_hybrid_search' by passing BOTH the original text and the vector you just generated.
+# 3. Summarize the findings for the user.
 
+# If the search fails, try adjusting the search terms and try again.""",
+#     allowed_tools=["jina_embedding", "arxiv_hybrid_search"],
+#     max_turns=15,
+# )
+PAPER_RESEARCHER = SubagentDefinition(
+    name="paper_researcher",
+    description="Finds and analyzes Arxiv papers using semantic hybrid search.",
+    goal_prompt="""
+You are an expert research assistant specialized in academic paper discovery.
+
+Your task is to help users find relevant Arxiv papers using a structured workflow.
+
+Suggested workflow:
+
+1. Convert the research query into an embedding vector using the tool `jina_embedding`.
+2. Use `arxiv_hybrid_search` with BOTH:
+   - the original query text
+   - the embedding vector
+3. Evaluate the search results using `llm_judge`.
+4. If the judge score is low (less than 0.6), improve the query using `rewrite_query`.
+5. Run the search again with the improved query.
+6. When good results are found, summarize the most relevant papers.
+
+Your final response should include:
+- Paper titles
+- Short summaries
+- Why they are relevant to the user's query
+
+Important rules:
+- Use tools when necessary.
+- Do not hallucinate papers.
+- Be concise and factual.
+""",
+    allowed_tools=[
+        "jina_embedding",
+        "arxiv_hybrid_search",
+        "llm_judge",
+        "rewrite_query"
+    ],
+    max_turns=10,
+)
 def get_default_subagent_definitions() -> list[SubagentDefinition]:
     return [
         CODEBASE_INVESTIGATOR,
         CODE_REVIEWER,
+        PAPER_RESEARCHER,
     ]

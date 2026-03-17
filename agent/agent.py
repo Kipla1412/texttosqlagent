@@ -2,11 +2,13 @@ from __future__ import annotations
 from typing import AsyncGenerator, Awaitable, Callable
 from agent.events import AgentEvent, AgentEventType
 from agent.session import Session
-from client.response import StreamEventType, TokenUsage, ToolCall, ToolResultMessage
+from client.response import StreamEventType, TokenUsage, ToolCall, ToolResultMessage, parse_tool_call_arguments
 from config.config import Config
 from prompts.system import create_loop_breaker_prompt
 from tools.base import ToolConfirmation
-
+import json
+import time
+from datetime import datetime
 
 class Agent:
     def __init__(
@@ -19,6 +21,7 @@ class Agent:
         self.session.approval_manager.confirmation_callback = confirmation_callback
 
     async def run(self, message: str):
+        
         await self.session.hook_system.trigger_before_agent(message)
         yield AgentEvent.agent_start(message)
         self.session.context_manager.add_user_message(message)
@@ -32,6 +35,25 @@ class Agent:
                 final_response = event.data.get("content")
 
         await self.session.hook_system.trigger_after_agent(message, final_response)
+        
+        # Track agent interaction with MLflow
+        session_duration = (
+            datetime.now() - self.session.created_at
+        ).total_seconds()
+
+        # Extract tools used and token usage from the session
+        tools_used = []  # You can populate this from the session context
+        token_usage = None  # You can extract this from the LLM client response
+        
+        self.session.track_agent_interaction(
+            user_message=message,
+            agent_response=final_response or "",
+            tools_used=tools_used,
+            session_duration=session_duration,
+            token_usage=token_usage,
+            success=final_response is not None
+        )
+        
         yield AgentEvent.agent_end(final_response)
 
     async def _agentic_loop(self) -> AsyncGenerator[AgentEvent, None]:
@@ -76,8 +98,18 @@ class Agent:
                 elif event.type == StreamEventType.MESSAGE_COMPLETE:
                     usage = event.usage
 
+                # # MLflow logging for LLM call
+                # if response_text:
+                #     self.session.mlflow_tracker.track_llm_call(
+                #         model=self.config.model_name,
+                #         messages=self.session.context_manager.get_messages(),
+                #         response=response_text,
+                #         tokens_used=usage.total_tokens if usage else 0,
+                #         response_time=0
+                #     )
+
             self.session.context_manager.add_assistant_message(
-                response_text or None,
+                response_text or "",
                 (
                     [
                         {
@@ -85,7 +117,7 @@ class Agent:
                             "type": "function",
                             "function": {
                                 "name": tc.name,
-                                "arguments": str(tc.arguments),
+                                "arguments": json.dumps(tc.arguments),
                             },
                         }
                         for tc in tool_calls
@@ -123,7 +155,11 @@ class Agent:
                     tool_name=tool_call.name,
                     args=tool_call.arguments,
                 )
-
+                # parsed_args = parse_tool_call_arguments(tool_call.arguments)
+                
+                print(f"DEBUG: Tool {tool_call.name} called with args: {tool_call.arguments}")
+                
+                # start_time = time.time()
                 result = await self.session.tool_registry.invoke(
                     tool_call.name,
                     tool_call.arguments,
@@ -131,6 +167,15 @@ class Agent:
                     self.session.hook_system,
                     self.session.approval_manager,
                 )
+                
+                # execution_time = time.time() - start_time
+                # # MLflow tracking
+                # self.session.mlflow_tracker.track_tool_execution(
+                #     tool_name=tool_call.name,
+                #     params=tool_call.arguments,
+                #     result=result.output if result else None,
+                #     execution_time=execution_time
+                # )
 
                 yield AgentEvent.tool_call_complete(
                     tool_call.call_id,
@@ -177,4 +222,6 @@ class Agent:
         if self.session and self.session.client and self.session.mcp_manager:
             await self.session.client.close()
             await self.session.mcp_manager.shutdown()
+            # Cleanup MLflow run
+            self.session.cleanup()
             self.session = None

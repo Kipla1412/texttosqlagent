@@ -1,0 +1,12 @@
+{
+  "tool_name": "test_tool",
+  "parameters": {
+    "test": "value"
+  },
+  "result_summary": {
+    "type": "dict",
+    "size": 21
+  },
+  "timestamp": "2026-03-10T10:20:57.242561",
+  "session_id": "f82f6482-1138-482c-96c7-0a10085269ff"
+}

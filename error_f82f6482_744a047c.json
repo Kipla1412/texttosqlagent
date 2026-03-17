@@ -1,0 +1,9 @@
+{
+  "error_type": "TestError",
+  "error_message": "This is a test error",
+  "context": {
+    "test": true
+  },
+  "timestamp": "2026-03-10T10:20:57.954917",
+  "session_id": "f82f6482-1138-482c-96c7-0a10085269ff"
+}

@@ -38,7 +38,7 @@ def get_system_prompt(
 
     return "\n\n".join(parts)
 
-
+#change new usecase specific identity
 def _get_identity_section() -> str:
     """Generate the identity section."""
     return """# Identity
@@ -114,7 +114,7 @@ def _get_security_section() -> str:
 
 6. **Security First**: Always apply security best practices. Never introduce code that exposes, logs, or commits secrets, API keys, or other sensitive information."""
 
-
+#Business logic specific operational guidelines
 def _get_operational_section() -> str:
     """Generate operational guidelines."""
     return """# Operational Guidelines
@@ -231,7 +231,7 @@ def _get_tool_guidelines_section(tools: list[Tool]) -> str:
 
     guidelines = """# Tool Usage Guidelines
 
-You have access to the following tools to accomplish your tasks:
+You have access to the following tools to accomplish your tasks. Each tool has a JSON schema defining its parameters:
 
 """
 
@@ -239,10 +239,29 @@ You have access to the following tools to accomplish your tasks:
         description = tool.description
         if len(description) > 100:
             description = description[:100] + "..."
-        guidelines += f"- **{tool.name}**: {description}\n"
+        guidelines += f"## {tool.name}\n"
+        guidelines += f"{description}\n"
+        
+        # Add the JSON schema for this tool
+        try:
+            schema = tool.to_openai_schema()
+            params = schema.get("parameters", {})
+            properties = params.get("properties", {})
+            required = params.get("required", [])
+            
+            if properties:
+                guidelines += "**Parameters:**\n"
+                for prop_name, prop_info in properties.items():
+                    prop_type = prop_info.get("type", "any")
+                    prop_desc = prop_info.get("description", "")
+                    is_required = "(required)" if prop_name in required else "(optional)"
+                    guidelines += f"  - `{prop_name}` ({prop_type}) {is_required}: {prop_desc}\n"
+            guidelines += "\n"
+        except Exception:
+            pass
 
     if subagent_tools:
-        guidelines += "\n## Sub-Agents\n\n"
+        guidelines += "## Sub-Agents\n\n"
         for tool in subagent_tools:
             description = tool.description
             if len(description) > 100:
@@ -273,11 +292,33 @@ You have access to the following tools to accomplish your tasks:
 
 5. **Memory**:
    - Use `memory` to store important user preferences
-   - Retrieve stored preferences when relevant"""
+   - Retrieve stored preferences when relevant
+
+6. **Data Analytics Rule**:
+
+User datasets may contain millions of rows.
+Reading CSV files directly is inefficient.
+
+Always prefer database queries over reading raw files.
+The health datasets are already loaded inside DuckDB tables.
+
+Tables available:
+- daily_summary
+- exercise_sessions
+
+When the user asks questions about:
+steps, sleep, workouts, calories, heart rate, averages, totals, trends, or statistics,
+
+You MUST use the tool `duckdb_health_query`.
+
+Do NOT read CSV files directly using `read_file`.
+Do NOT search datasets using `grep`.
+
+Always generate a SQL query and execute it using `duckdb_health_query`."""
 
     if subagent_tools:
         guidelines += """
-6. **Sub-Agents**:
+7. **Sub-Agents**:
    - Use sub-agents for complex codebase exploration, code review, or specialized multi-step tasks
    - Sub-agents run with isolated context and have limited tool access
    - Provide clear, specific goals when invoking sub-agents

@@ -57,6 +57,7 @@ class LLMClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         stream: bool = True,
+        **kwargs_extra,
     ) -> AsyncGenerator[StreamEvent, None]:
         client = self.get_client()
 
@@ -65,6 +66,8 @@ class LLMClient:
             "messages": messages,
             "stream": stream,
         }
+
+        kwargs.update(kwargs_extra)
 
         if tools:
             kwargs["tools"] = self._build_tools(tools)
@@ -111,6 +114,7 @@ class LLMClient:
         client: AsyncOpenAI,
         kwargs: dict[str, Any],
     ) -> AsyncGenerator[StreamEvent, None]:
+        
         response = await client.chat.completions.create(**kwargs)
 
         finish_reason: str | None = None
@@ -147,21 +151,23 @@ class LLMClient:
 
                     if idx not in tool_calls:
                         tool_calls[idx] = {
-                            "id": tool_call_delta.id or "",
+                            "id": "",
                             "name": "",
                             "arguments": "",
                         }
+                    if tool_call_delta.id:
+                        tool_calls[idx]["id"] = tool_call_delta.id
 
-                        if tool_call_delta.function:
-                            if tool_call_delta.function.name:
-                                tool_calls[idx]["name"] = tool_call_delta.function.name
-                                yield StreamEvent(
-                                    type=StreamEventType.TOOL_CALL_START,
-                                    tool_call_delta=ToolCallDelta(
-                                        call_id=tool_calls[idx]["id"],
-                                        name=tool_call_delta.function.name,
-                                    ),
-                                )
+                    if tool_call_delta.function:
+                        if tool_call_delta.function.name:
+                            tool_calls[idx]["name"] = tool_call_delta.function.name
+                            yield StreamEvent(
+                                type=StreamEventType.TOOL_CALL_START,
+                                tool_call_delta=ToolCallDelta(
+                                    call_id=tool_calls[idx]["id"],
+                                    name=tool_call_delta.function.name,
+                                ),
+                            )
 
                         if tool_call_delta.function.arguments:
                             tool_calls[idx][

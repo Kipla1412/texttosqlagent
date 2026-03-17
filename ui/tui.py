@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+import json
 from rich.console import Console
 from rich.theme import Theme
 from rich.rule import Rule
@@ -123,6 +124,12 @@ class TUI:
 
             if isinstance(value, bool):
                 value = str(value)
+            
+            if isinstance(value, (int, float)):
+                value = str(value)
+            
+            if isinstance(value, (list, dict)):
+                value = json.dumps(value, indent=2)
 
             table.add_row(key, value)
 

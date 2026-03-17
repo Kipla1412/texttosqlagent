@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class ModelConfig(BaseModel):
-    name: str = "mistralai/devstral-2512:free"
+    name: str = "gpt-4.1" #"gpt-4o-mini" #"mistralai/devstral-2512:free"
     temperature: float = Field(default=1, ge=0.0, le=2.0)
     context_window: int = 256_000
 
@@ -139,6 +139,54 @@ class Config(BaseModel):
             errors.append(f"Working directory does not exist: {self.cwd}")
 
         return errors
+    
+    @property
+    def jina_api_key(self) -> str | None:
+        return os.environ.get("JINA_API_KEY")
+
+    @property
+    def jina_api_url(self) -> str:
+        return os.environ.get("JINA_BASE_URL","https://api.jina.ai/v1/embeddings")
+
+    @property
+    def jina_model(self) -> str:
+        return os.environ.get("JINA_MODEL", "jina-embeddings-v3")
+
+    @property
+    def jina_dimensions(self) -> int:
+        return int(os.environ.get("JINA_DIMENSIONS", "1024"))
+
+    @property
+    def opensearch_host(self) -> str:
+        return os.environ.get("OPENSEARCH_HOST", "localhost")
+
+    @property
+    def opensearch_port(self) -> int:
+        return int(os.environ.get("OPENSEARCH_PORT", "9200"))
+
+    @property
+    def opensearch_user(self) -> str:
+        return os.environ.get("OPENSEARCH_USER", "admin")
+
+    @property
+    def opensearch_password(self) -> str:
+        return os.environ.get("OPENSEARCH_PASSWORD", None)
+
+    @property
+    def opensearch_ssl(self) -> bool:
+        return os.environ.get("OPENSEARCH_SSL", False) == False
+
+    @property
+    def mlflow_enabled(self) -> bool:
+        return os.environ.get("MLFLOW_ENABLED", "true").lower() == "true"
+
+    @property
+    def mlflow_tracking_uri(self) -> str:
+        return os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000")
+
+    @property
+    def mlflow_experiment_name(self) -> str:
+        return os.environ.get("MLFLOW_EXPERIMENT_NAME", "AIAgent")
 
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")
