@@ -17,8 +17,7 @@ class JinaEmbeddingParams(BaseModel):
 
 class JinaEmbeddingTool(Tool):
     name = "jina_embedding"
-    description = "Generates a 1024-dimension vector using Jina AI v3 API for semantic search."
-    kind = ToolKind.NETWORK
+    description = "MANDATORY first step. Converts query into vector for retrieval. MUST be called before search."
 
     def __init__(self, config: Config):
         super().__init__(config)

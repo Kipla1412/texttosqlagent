@@ -22,7 +22,7 @@ class RewriteQueryParams(BaseModel):
 class RewriteQueryTool(Tool):
 
     name = "rewrite_query"
-    description = "Rewrites search queries to improve retrieval results."
+    description = "Used ONLY when retrieval quality is low (score < 0.6). Improves the query and retries search."
     kind = ToolKind.NETWORK
 
     def __init__(self, config: Config):

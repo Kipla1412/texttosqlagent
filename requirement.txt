@@ -2,3 +2,11 @@ python-dotenv
 mlflow>=2.0.0
 psutil>=5.8.0
 pydantic
+duckduckgo-search
+tomli
+platformdirs
+openai
+ddgs
+tiktoken
+fastmcp
+opensearch-py

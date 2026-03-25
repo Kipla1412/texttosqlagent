@@ -24,7 +24,7 @@ class LLMJudgeParams(BaseModel):
 class LLMJudgeTool(Tool):
 
     name = "llm_judge"
-    description = "Scores search results on a normalized 0.0–1.0 relevance scale."
+    description = "MANDATORY evaluation step. Scores retrieval quality. Determines whether query rewriting is needed."
     kind = ToolKind.NETWORK
     # allowed_tools = ["jina_embedding", "arxiv_hybrid_search", "paper_researcher"]
 
