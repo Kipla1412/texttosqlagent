@@ -9,6 +9,7 @@ from tools.base import ToolConfirmation
 import json
 import time
 from datetime import datetime
+import asyncio
 
 class Agent:
     def __init__(
@@ -98,16 +99,6 @@ class Agent:
                 elif event.type == StreamEventType.MESSAGE_COMPLETE:
                     usage = event.usage
 
-                # # MLflow logging for LLM call
-                # if response_text:
-                #     self.session.mlflow_tracker.track_llm_call(
-                #         model=self.config.model_name,
-                #         messages=self.session.context_manager.get_messages(),
-                #         response=response_text,
-                #         tokens_used=usage.total_tokens if usage else 0,
-                #         response_time=0
-                #     )
-
             self.session.context_manager.add_assistant_message(
                 response_text or "",
                 (
@@ -168,14 +159,6 @@ class Agent:
                     self.session.approval_manager,
                 )
                 
-                # execution_time = time.time() - start_time
-                # # MLflow tracking
-                # self.session.mlflow_tracker.track_tool_execution(
-                #     tool_name=tool_call.name,
-                #     params=tool_call.arguments,
-                #     result=result.output if result else None,
-                #     execution_time=execution_time
-                # )
 
                 yield AgentEvent.tool_call_complete(
                     tool_call.call_id,
@@ -209,6 +192,164 @@ class Agent:
             self.session.context_manager.prune_tool_outputs()
         yield AgentEvent.agent_error(f"Maximum turns ({max_turns}) reached")
 
+    # async def run_audio(self, audio, rate):
+
+    #     import io
+    #     import soundfile as sf
+    #     import numpy as np
+
+    #     # 1. STT
+    #     stt_engine = self.config.stt_engine
+
+    #     processed = stt_engine.processor.process(audio, rate)
+    #     audio_bytes = stt_engine.processor.to_bytes(processed)
+
+    #     try:
+           
+    #         user_text = await asyncio.to_thread(
+    #             stt_engine.provider.transcribe,
+    #             audio_bytes
+    #         )
+    #     except Exception as e:
+    #         yield AgentEvent.agent_error(f"STT Error: {str(e)}")
+    #         return
+
+    #     # handle empty speech
+    #     if not user_text.strip():
+    #         yield AgentEvent.agent_error("No speech detected")
+    #         return
+
+    #     # 2. Run normal agent (NO extra agent_start)
+    #     async for event in self.run(user_text):
+    #         yield event
+
+    #         # 3. Convert final response → speech
+    #         if event.type == AgentEventType.TEXT_COMPLETE:
+
+    #             try:
+    #                 tts = self.config.tts_engine
+
+    #                 audio_out, sr = await asyncio.to_thread(tts.synthesize, event.data["content"])
+
+    #                 # use helper method
+    #                 yield AgentEvent.voice_output(audio_out, sr)
+
+    #             except Exception as e:
+    #                 yield AgentEvent.agent_error(f"TTS Error: {str(e)}")
+
+
+    async def run_audio(self, audio, rate):
+        import io
+        import soundfile as sf
+        import numpy as np
+
+        # Initialize session-level buffers
+        if not hasattr(self.session, '_audio_buffer'):
+            self.session._audio_buffer = []
+            self.session._silence_chunks = 0
+        
+        # Add new audio chunk to buffer
+        self.session._audio_buffer.append(audio)
+        
+        # Calculate energy for this chunk
+        audio_array = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0
+        energy = np.mean(audio_array ** 2)
+        energy_db = 10 * np.log10(energy + 1e-10)
+        
+        print(f"DEBUG: Chunk energy: {energy_db:.2f} dB, Buffer size: {len(self.session._audio_buffer)}")
+        
+        # Check if this is silence (below threshold)
+        if energy_db < -35:  # More sensitive threshold
+            self.session._silence_chunks += 1
+            print(f"DEBUG: Silence chunks: {self.session._silence_chunks}")
+        else:
+            self.session._silence_chunks = 0
+        
+        # Process if we have speech followed by silence (user finished speaking)
+        if len(self.session._audio_buffer) > 5 and self.session._silence_chunks >= 3:  # More responsive
+            print("DEBUG: User finished speaking, processing...")
+            
+            # Combine all buffered audio
+            total_audio = b''.join(self.session._audio_buffer)
+            
+            # Reset buffers
+            self.session._audio_buffer = []
+            self.session._silence_chunks = 0
+            
+            # Only process if we have enough audio (at least 0.5 seconds)
+            min_bytes = int(16000 * 0.5 * 2)
+            if len(total_audio) < min_bytes:
+                print("DEBUG: Too short, ignoring")
+                return
+        else:
+            # Keep collecting audio
+            return
+
+        # 1. STT Setup
+        stt_engine = self.config.stt_engine
+        
+        try:
+            # Convert raw bytes to Numpy Array
+            raw_audio_array = (
+                np.frombuffer(total_audio, dtype=np.int16)
+                .astype(np.float32) / 32768.0
+            )
+
+            samplerate = 16000
+            # Now the processor can handle it because it's an array with .ndim
+            processed = stt_engine.processor.process(raw_audio_array, samplerate)
+            audio_bytes = stt_engine.processor.to_bytes(processed)
+
+            # 2. Transcribe (using to_thread because it's a blocking network call)
+            user_text = await asyncio.to_thread(
+                stt_engine.provider.transcribe,
+                audio_bytes
+            )
+            
+            # DEBUG: Log what STT returned
+            print(f"DEBUG: STT returned: '{user_text}' (length: {len(user_text) if user_text else 0})")
+            
+        except Exception as e:
+            print(f"DEBUG: STT Exception: {str(e)}")
+            yield AgentEvent.agent_error(f"STT/Processing Error: {str(e)}")
+            return
+
+        # Handle empty speech
+        if not user_text or not user_text.strip():
+            print("DEBUG: No speech detected or empty transcription")
+            yield AgentEvent.agent_error("No speech detected - please speak clearly")
+            return
+
+        # Filter out very short transcriptions (likely noise)
+        clean_text = user_text.strip()
+
+        if len(clean_text) < 3:
+            print("DEBUG: Transcription too short, likely noise")
+            return
+
+        # Send user question to frontend
+        yield AgentEvent.user_question(user_text.strip())
+
+        # 3. Run normal agent loop
+        async for event in self.run(user_text):
+            yield event
+
+            # 4. Convert final response → speech
+            if event.type == AgentEventType.TEXT_COMPLETE:
+                try:
+                    tts = self.config.tts_engine
+                    
+                    # Wrap synthesize in to_thread so it doesn't block the async loop
+                    audio_out, sr = await asyncio.to_thread(
+                        tts.synthesize, 
+                        event.data["content"]
+                    )
+                    audio_bytes = tts.processor.array_to_wav_bytes(audio_out, sr)
+                    yield AgentEvent.voice_output(audio_bytes, sr)
+
+                except Exception as e:
+                    yield AgentEvent.agent_error(f"TTS Error: {str(e)}")
+                    
     async def __aenter__(self) -> Agent:
         await self.session.initialize()
         return self
@@ -217,7 +358,7 @@ class Agent:
         self,
         exc_type,
         exc_val,
-        exc_tb,
+        exc_tb,  
     ) -> None:
         if self.session and self.session.client and self.session.mcp_manager:
             await self.session.client.close()

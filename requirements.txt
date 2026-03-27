@@ -10,3 +10,5 @@ ddgs
 tiktoken
 fastmcp
 opensearch-py
+fastapi
+reportlab

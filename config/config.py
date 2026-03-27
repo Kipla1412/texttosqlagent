@@ -4,13 +4,16 @@ import os
 from pathlib import Path
 from typing import Any
 from pydantic import BaseModel, Field, model_validator
-
+from speechtospeech.providers.stt.factory import create_stt_provider
+from speechtospeech.providers.tts.factory import create_tts_provider
+from speechtospeech.audioprocessor import AudioProcessor
+from speechtospeech.speechtotext.sttengine import TranscriptionEngine
+from speechtospeech.texttospeech.ttsengine import TTSEngine
 
 class ModelConfig(BaseModel):
     name: str = "gpt-4.1" #"gpt-4o-mini" #"mistralai/devstral-2512:free"
     temperature: float = Field(default=1, ge=0.0, le=2.0)
     context_window: int = 256_000
-
 
 class ShellEnvironmentPolicy(BaseModel):
     ignore_default_excludes: bool = False
@@ -18,7 +21,6 @@ class ShellEnvironmentPolicy(BaseModel):
         default_factory=lambda: ["*KEY*", "*TOKEN*", "*SECRET*"]
     )
     set_vars: dict[str, str] = Field(default_factory=dict)
-
 
 class MCPServerConfig(BaseModel):
     enabled: bool = True
@@ -55,7 +57,7 @@ class ApprovalPolicy(str, Enum):
     ON_REQUEST = "on-request"
     ON_FAILURE = "on-failure"
     AUTO = "auto"
-    AUTO_EDIT = "auto-edut"
+    AUTO_EDIT = "auto-edit"
     NEVER = "never"
     YOLO = "yolo"
 
@@ -82,8 +84,8 @@ class HookConfig(BaseModel):
             raise ValueError("Hook must either have 'command' or 'script'")
         return self
 
-
 class Config(BaseModel):
+    
     model: ModelConfig = Field(default_factory=ModelConfig)
     cwd: Path = Field(default_factory=Path.cwd)
     shell_environment: ShellEnvironmentPolicy = Field(
@@ -125,8 +127,12 @@ class Config(BaseModel):
     def temperature(self) -> float:
         return self.model.temperature
 
-    @model_name.setter
-    def temperature(self, value: str) -> None:
+    # @model_name.setter
+    # def temperature(self, value: str) -> None:
+    #     self.model.temperature = value
+
+    @temperature.setter
+    def temperature(self, value: float) -> None:
         self.model.temperature = value
 
     def validate(self) -> list[str]:
@@ -138,43 +144,49 @@ class Config(BaseModel):
         if not self.cwd.exists():
             errors.append(f"Working directory does not exist: {self.cwd}")
 
+        if not self.stt_provider:
+            errors.append("STT_PROVIDER not set")
+
+        if not self.stt_model:
+            errors.append("STT_MODEL not set")
+
         return errors
     
-    @property
-    def jina_api_key(self) -> str | None:
-        return os.environ.get("JINA_API_KEY")
+    # @property
+    # def jina_api_key(self) -> str | None:
+    #     return os.environ.get("JINA_API_KEY")
 
-    @property
-    def jina_api_url(self) -> str:
-        return os.environ.get("JINA_BASE_URL","https://api.jina.ai/v1/embeddings")
+    # @property
+    # def jina_api_url(self) -> str:
+    #     return os.environ.get("JINA_BASE_URL","https://api.jina.ai/v1/embeddings")
 
-    @property
-    def jina_model(self) -> str:
-        return os.environ.get("JINA_MODEL", "jina-embeddings-v3")
+    # @property
+    # def jina_model(self) -> str:
+    #     return os.environ.get("JINA_MODEL", "jina-embeddings-v3")
 
-    @property
-    def jina_dimensions(self) -> int:
-        return int(os.environ.get("JINA_DIMENSIONS", "1024"))
+    # @property
+    # def jina_dimensions(self) -> int:
+    #     return int(os.environ.get("JINA_DIMENSIONS", "1024"))
 
-    @property
-    def opensearch_host(self) -> str:
-        return os.environ.get("OPENSEARCH_HOST", "localhost")
+    # @property
+    # def opensearch_host(self) -> str:
+    #     return os.environ.get("OPENSEARCH_HOST", "localhost")
 
-    @property
-    def opensearch_port(self) -> int:
-        return int(os.environ.get("OPENSEARCH_PORT", "9200"))
+    # @property
+    # def opensearch_port(self) -> int:
+    #     return int(os.environ.get("OPENSEARCH_PORT", "9200"))
 
-    @property
-    def opensearch_user(self) -> str:
-        return os.environ.get("OPENSEARCH_USER", "admin")
+    # @property
+    # def opensearch_user(self) -> str:
+    #     return os.environ.get("OPENSEARCH_USER", "admin")
 
-    @property
-    def opensearch_password(self) -> str:
-        return os.environ.get("OPENSEARCH_PASSWORD", None)
+    # @property
+    # def opensearch_password(self) -> str:
+    #     return os.environ.get("OPENSEARCH_PASSWORD", None)
 
-    @property
-    def opensearch_ssl(self) -> bool:
-        return os.environ.get("OPENSEARCH_SSL", False) == False
+    # @property
+    # def opensearch_ssl(self) -> bool:
+    #     return os.environ.get("OPENSEARCH_SSL", False) == False
 
     @property
     def mlflow_enabled(self) -> bool:
@@ -187,6 +199,95 @@ class Config(BaseModel):
     @property
     def mlflow_experiment_name(self) -> str:
         return os.environ.get("MLFLOW_EXPERIMENT_NAME", "AIAgent")
+    
+    @property
+    def stt_engine(self):
 
+        if not hasattr(self, "_stt_engine"):
+
+            provider = create_stt_provider(
+                self.stt_provider,
+                api_key=(
+                    self.hf_api_key if self.stt_provider == "huggingface"
+                    else self.openai_api_key
+                ),
+                model=self.stt_model,
+                endpoint_url=self.stt_endpoint
+            )
+
+            processor = AudioProcessor(target_rate=self.stt_sample_rate)
+
+            self._stt_engine = TranscriptionEngine(provider, processor)
+
+        return self._stt_engine
+
+    @property
+    def hf_api_key(self):
+        return os.environ.get("HF_API_KEY")
+
+    @property
+    def openai_api_key(self):
+        return os.environ.get("API_KEY")
+    
+    @property
+    def stt_provider(self) -> str:
+        return os.environ.get("STT_PROVIDER", "huggingface")
+
+    @property
+    def stt_model(self) -> str:
+        return os.environ.get("STT_MODEL", "openai/whisper-large-v3")
+
+    @property
+    def stt_endpoint(self) -> str | None:
+        return os.environ.get("STT_ENDPOINT")
+
+    @property
+    def stt_sample_rate(self) -> int:
+        return int(os.environ.get("STT_SAMPLE_RATE", "16000"))
+
+    # TTS CONFIG
+# --------------------------------------------------
+
+    @property
+    def tts_provider(self):
+        return os.environ.get("TTS_PROVIDER", "openai")
+
+    @property
+    def tts_model(self):
+        return os.environ.get("TTS_MODEL", "gpt-4o-mini-tts")
+
+    @property
+    def tts_endpoint(self):
+        return os.environ.get("TTS_ENDPOINT")
+
+    @property
+    def tts_sample_rate(self):
+        return int(os.environ.get("TTS_SAMPLE_RATE", "22050"))
+
+    @property
+    def groq_api_key(self):
+        return os.environ.get("GROQ_API_KEY")
+
+    @property
+    def tts_engine(self):
+
+        if not hasattr(self, "_tts_engine"):
+
+            provider = create_tts_provider(
+                self.tts_provider,
+                api_key=(
+                    self.groq_api_key if self.tts_provider == "groq"
+                    else self.openai_api_key
+                ),
+                model=self.tts_model,
+                endpoint_url=self.tts_endpoint
+            )
+
+            processor = AudioProcessor(target_rate=self.tts_sample_rate)
+
+            self._tts_engine = TTSEngine(provider, processor)
+
+        return self._tts_engine
+        
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")

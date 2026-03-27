@@ -21,6 +21,12 @@ class AgentEventType(str, Enum):
     TEXT_DELTA = "text_delta"
     TEXT_COMPLETE = "text_complete"
 
+    # Voice output
+    VOICE_OUTPUT = "voice_output"
+    
+    # User input
+    USER_QUESTION = "user_question"
+
 
 @dataclass
 class AgentEvent:
@@ -70,6 +76,20 @@ class AgentEvent:
     def text_complete(cls, content: str) -> AgentEvent:
         return cls(
             type=AgentEventType.TEXT_COMPLETE,
+            data={"content": content},
+        )
+
+    @classmethod
+    def voice_output(cls, audio: bytes, sample_rate: int) -> AgentEvent:
+        return cls(
+            type=AgentEventType.VOICE_OUTPUT,
+            data={"audio": audio, "sample_rate": sample_rate},
+        )
+
+    @classmethod
+    def user_question(cls, content: str) -> AgentEvent:
+        return cls(
+            type=AgentEventType.USER_QUESTION,
             data={"content": content},
         )
 
