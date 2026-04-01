@@ -174,15 +174,7 @@ class CLI:
             console.print(f"\n[bold]Available tools ({len(tools)}) [/bold]")
             for tool in tools:
                 console.print(f"  • {tool.name}")
-        elif cmd_name == "/mcp":
-            mcp_servers = self.agent.session.mcp_manager.get_all_servers()
-            console.print(f"\n[bold]MCP Servers ({len(mcp_servers)}) [/bold]")
-            for server in mcp_servers:
-                status = server["status"]
-                status_color = "green" if status == "connected" else "red"
-                console.print(
-                    f"  • {server['name']}: [{status_color}]{status}[/{status_color}] ({server['tools']} tools)"
-                )
+
         elif cmd_name == "/save":
             persistence_manager = PersistenceManager()
             session_snapshot = SessionSnapshot(
@@ -241,7 +233,6 @@ class CLI:
                             )
 
                     await self.agent.session.client.close()
-                    await self.agent.session.mcp_manager.shutdown()
 
                     self.agent.session = session
                     console.print(
@@ -295,7 +286,6 @@ class CLI:
                             )
 
                     await self.agent.session.client.close()
-                    await self.agent.session.mcp_manager.shutdown()
 
                     self.agent.session = session
                     console.print(

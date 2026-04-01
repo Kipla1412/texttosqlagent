@@ -1,8 +1,0 @@
-Patient Name: Kiblak Nisha
-Age: 24
-Gender: Female
-Symptoms: Fever, started three days ago, staying the same.
-Current Medications: None
-Allergies: None known
-Pain Level: Not specified
-Medical History: No known conditions.

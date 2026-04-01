@@ -1,67 +1,74 @@
-from tools.base import Tool, ToolResult, ToolInvocation, ToolKind
+from __future__ import annotations
+import os
+from pathlib import Path
 from pydantic import BaseModel
+from tools.base import Tool, ToolResult, ToolInvocation, ToolKind
 from utils.conversation import build_conversation_text
 from utils.patientstorage import get_patient_folder
 from utils.assesmentplan import AssessmentPlanReportGenerator
+from client.response import StreamEventType
 
 class AssessmentReportSchema(BaseModel):
-    patient_id: str
+    patient_id: str | None = None
 
 class GenerateAssessmentReportTool(Tool):
-
     name = "generate_assessment_report"
-    description = "Generate Assessment & Plan PDF for patient"
+    description = "Generate a structured doctor-facing Assessment & Plan PDF"
     kind = ToolKind.WRITE
-    schema = AssessmentReportSchema
+    
+    # We add this so we can inject the session manually 
+    # without changing the base Tool class
+    session = None 
+
+    @property
+    def schema(self):
+        return AssessmentReportSchema
 
     async def execute(self, invocation: ToolInvocation) -> ToolResult:
-
         try:
+            # 1. Validation: Ensure session was injected
+            if not self.session:
+                return ToolResult.error_result("Tool Error: Session context not linked.")
 
-            patient_id = invocation.params["patient_id"]
+            patient_info = getattr(self.session, "patient_info", {})
+            patient_id = invocation.params.get("patient_id") or patient_info.get("patient_id")
 
-            # Get conversation from memory
-            conversation = ""
-            if "conversation" in self.config.memory:
-                conversation = self.config.memory["conversation"]
-            else:
-                # Try to get from messages if available
-                messages = self.config.memory.get("messages", [])
-                if messages:
-                    conversation = build_conversation_text(messages)     
+            if not patient_id:
+                return ToolResult.error_result("Missing patient_id in tool parameters.")
 
-            assessment_text = await self._generate_assessment(conversation)
+            # 2. Extract Data from Session
+            messages = self.session.context_manager.get_messages()
+            conversation = build_conversation_text(messages)
 
-            patient_dir = get_patient_folder(self.config.cwd, patient_id)
+            if not conversation:
+                return ToolResult.error_result("Conversation is empty. Cannot generate assessment.")
 
-            output_file = patient_dir / "assessment_plan_report.pdf"
+            # 3. Generate Clinical Text via LLM
+            assessment_text = await self._generate_clinical_text(conversation)
 
-            patient_info = {
-                "patient_id": patient_id
-            }
+            # 4. Path Handling (Fixing the TypeError for WSL)
+            # Convert str to Path locally so it doesn't break other agents
+            base_cwd = Path(str(self.config.cwd))
+            patient_dir = get_patient_folder(base_cwd, patient_id)
+            os.makedirs(patient_dir, exist_ok=True)
+            
+            output_file = patient_dir / f"assessment_{patient_id}.pdf"
 
+            # 5. PDF Generation
             generator = AssessmentPlanReportGenerator(patient_info)
-
             generator.generate(assessment_text, str(output_file))
 
-            return ToolResult.success_result(
-                f"Assessment report saved at {output_file}"
-            )
+            return ToolResult.success_result(f"Clinical report generated: {output_file}")
 
         except Exception as e:
-            return ToolResult.error_result(str(e))
+            return ToolResult.error_result(f"Tool Execution Failed: {str(e)}")
 
-    async def _generate_assessment(self, conversation: str) -> str:
-        """Helper method to generate assessment text"""
-        # This is a placeholder - you'll need to implement the actual
-        # LLM call here based on your system's client interface
+    async def _generate_clinical_text(self, conversation: str) -> str:
+        """Helper method to generate assessment text using your strict prompt"""
         
         prompt = f"""
-
 You are a clinical Assessment & Plan generation agent.
-
-Analyze the following patient conversation and generate a
-doctor-facing Assessment & Plan.
+Analyze the following patient conversation and generate a doctor-facing Assessment & Plan.
 
 Conversation:
 {conversation}
@@ -75,14 +82,11 @@ Briefly summarize key symptoms, duration, severity, and risk factors.
 
 B. Differential Diagnosis
 List the TOP 3-5 diagnoses in descending likelihood.
-
 For each diagnosis include:
 - Diagnosis name
 - Estimated likelihood percentage (total ~100%)
 - Clear clinical rationale
-
 Use this exact format:
-
 1. Diagnosis Name - ~XX% Likelihood
 • Rationale: ...
 
@@ -91,7 +95,6 @@ Group tests under:
 - Laboratory Tests
 - Imaging Studies (only if indicated)
 - Other Diagnostics
-
 For each test include:
 - Test name
 - Sample/source
@@ -99,7 +102,6 @@ For each test include:
 
 D. Treatment Plan (Conditional)
 ONLY conditional recommendations.
-
 Use format:
 - If Diagnosis X is confirmed:
 • Medication
@@ -116,48 +118,22 @@ F. Risk & Urgency Assessment
 - Red-flag symptoms requiring escalation
 
 --------------------------------------------------
-
 STRICT RULES:
 - Plain text only
 - No markdown symbols
 - No patient-facing language
 - No definitive diagnosis
 - Output ONLY the Assessment & Plan document
-
 """
+        response_text = ""
+        # Use the session's existing client
+        async for event in self.session.client.chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2
+        ):
+            if event.type == StreamEventType.TEXT_DELTA and event.text_delta:
+                response_text += event.text_delta.content
         
-        # Placeholder implementation
-        # You'll need to replace this with your actual LLM client call
-        return """
-Assessment & Plan
+        return response_text.strip()
 
-A. Clinical Overview
-Patient presents with symptoms requiring further evaluation.
 
-B. Differential Diagnosis
-1. Common Condition - ~60% Likelihood
-• Rationale: Based on reported symptoms
-
-2. Less Common Condition - ~30% Likelihood
-• Rationale: Alternative explanation for symptoms
-
-3. Rare Condition - ~10% Likelihood
-• Rationale: Cannot be ruled out without further testing
-
-C. Diagnostic Plan
-- Laboratory Tests
-• Complete blood count
-• Basic metabolic panel
-
-D. Treatment Plan (Conditional)
-- If Condition X is confirmed:
-• Symptomatic treatment
-• Follow-up in 1-2 weeks
-
-E. Procedures / Interventions
-None indicated at this time.
-
-F. Risk & Urgency Assessment
-- Urgency level: LOW
-- No immediate red-flag symptoms identified
-"""

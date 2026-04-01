@@ -253,6 +253,8 @@ Documentation tools must ONLY be used after:
 6. Medical history asked
 7. Confirmation completed
 
+When the intake interview is complete and confirmed,
+you MUST call  generate_patient_summary, then generate_soap_report, followed by generate_assessment_report.
 Once confirmed, generate documentation in this order:
 
 1. generate_patient_summary
@@ -262,39 +264,7 @@ Once confirmed, generate documentation in this order:
 Use the full conversation transcript as input.
 """
 
-# def _get_documentation_section() -> str:
-#     return """
-# # Clinical Documentation Generation
-
-# After the intake conversation is complete you must generate
-# clinical documentation for the doctor.
-
-# Use the following tools:
-
-# 1. generate_patient_summary
-# Creates a short summary of the patient conversation.
-
-# 2. generate_soap_note
-# Creates a structured SOAP clinical note:
-# - Subjective
-# - Objective
-# - Assessment
-# - Plan
-
-# 3. generate_assessment_plan
-# Creates a doctor-facing clinical reasoning report including:
-# - Clinical overview
-# - Differential diagnosis
-# - Diagnostic plan
-# - Treatment considerations
-# - Risk and urgency level
-
-# These tools must only be used after the intake interview is finished.
-
-# Use the full conversation transcript as input.
-# """
-
-def _get_voice_rules() -> str:
+def _get_voice_rules() -> str:  
     return """
 # Voice Interaction Guidelines
 
@@ -354,22 +324,9 @@ def _get_environment_section(config: Config) -> str:
 - **Current Date**: {now.strftime("%A, %B %d, %Y")}
 - **Operating System**: {os_info}
 - **Working Directory**: {config.cwd}
-- **Shell**: {_get_shell_info()}
 
 The user has granted you access to run tools in service of their request. Use them when needed."""
 
-
-def _get_shell_info() -> str:
-    """Get shell information based on platform."""
-    import os
-    import sys
-
-    if sys.platform == "darwin":
-        return os.environ.get("SHELL", "/bin/zsh")
-    elif sys.platform == "win32":
-        return "PowerShell/cmd.exe"
-    else:
-        return os.environ.get("SHELL", "/bin/bash")
 
 def _get_security_section() -> str:
     return """

@@ -535,124 +535,121 @@ let source = null
 let audioContext = null
 let currentAudio = null
 let isRecording = false
+let currentAIMessage = null
 
 const recordBtn = document.getElementById("recordBtn")
 const chat = document.getElementById("chat")
 const status = document.getElementById("status")
 const loader = document.getElementById("loader")
 
-function addMessage(text,type){
+function addMessage(text, type) {
 
-const div=document.createElement("div")
-div.className="message "+type
 
-const span=document.createElement("span")
-span.innerText=text
+const div = document.createElement("div")
+div.className = "message " + type
+
+const span = document.createElement("span")
+span.innerText = text
 
 div.appendChild(span)
-
 chat.appendChild(div)
 
-chat.scrollTop=chat.scrollHeight
+chat.scrollTop = chat.scrollHeight
+
 
 }
 
 function connectSocket(){
 
-socket=new WebSocket("ws://127.0.0.1:8000/ws/chatting")
 
-socket.binaryType="arraybuffer"
+socket = new WebSocket("ws://127.0.0.1:8000/ws/chatting")
+socket.binaryType = "arraybuffer"
 
-socket.onopen=()=>{
-status.innerText="Connected"
-status.className="status connected"
+socket.onopen = () => {
+    status.innerText = "Connected"
+    status.className = "status connected"
 }
 
-socket.onclose=()=>{
-status.innerText="Disconnected"
-status.className="status disconnected"
+socket.onclose = () => {
+    status.innerText = "Disconnected"
+    status.className = "status disconnected"
 
-setTimeout(connectSocket,2000)
+    setTimeout(connectSocket, 2000)
 }
 
-socket.onerror=(e)=>{
-console.error("WebSocket error",e)
+socket.onerror = (e) => {
+    console.error("WebSocket error", e)
 }
 
-socket.onmessage=(event)=>{
+socket.onmessage = (event) => {
 
-if(event.data instanceof ArrayBuffer){
+    // 🔊 AUDIO RESPONSE
+    if(event.data instanceof ArrayBuffer){
 
-const blob=new Blob([event.data],{type:'audio/wav'})
+        const blob = new Blob([event.data], {type:'audio/wav'})
 
-if(currentAudio){
-currentAudio.pause()
-}
+        if(currentAudio){
+            currentAudio.pause()
+        }
 
-currentAudio=new Audio(URL.createObjectURL(blob))
+        currentAudio = new Audio(URL.createObjectURL(blob))
+        currentAudio.play().catch(err=>{
+            console.log("Audio play error",err)
+        })
 
-currentAudio.play().catch(err=>{
-console.log("Audio play error",err)
-})
-
-return
-}
-
-let data
-
-try{
-data=JSON.parse(event.data)
-}catch(err){
-console.error("Invalid JSON",event.data)
-return
-}
-
-if(data.type==="user_question"){
-
-addMessage(data.content,"user")
-
-loader.innerText="AI thinking..."
-
-}
-
-// if(data.type==="text"){
-
-// loader.innerText=""
-
-// addMessage(data.content,"ai")
-
-// }
-let currentAIMessage = null
-
-if(data.type === "text"){
-
-    loader.innerText = ""
-
-    if(!currentAIMessage){
-        currentAIMessage = document.createElement("div")
-        currentAIMessage.className = "message ai"
-
-        const span = document.createElement("span")
-        span.id = "ai-stream"
-
-        currentAIMessage.appendChild(span)
-        chat.appendChild(currentAIMessage)
+        return
     }
 
-    const span = document.getElementById("ai-stream")
-    span.innerText += data.content
+    let data
 
-    chat.scrollTop = chat.scrollHeight
+    try{
+        data = JSON.parse(event.data)
+    }catch(err){
+        console.error("Invalid JSON",event.data)
+        return
+    }
+
+    // USER SPEECH TRANSCRIPTION
+    if(data.type === "user_question"){
+
+        addMessage(data.content, "user")
+
+        loader.innerText = "AI thinking..."
+
+        currentAIMessage = null
+    }
+
+    // STREAMING AI RESPONSE
+    if(data.type === "text"){
+
+        loader.innerText = ""
+
+        if(!currentAIMessage){
+
+            currentAIMessage = document.createElement("div")
+            currentAIMessage.className = "message ai"
+
+            const span = document.createElement("span")
+            span.id = "ai-stream"
+
+            currentAIMessage.appendChild(span)
+            chat.appendChild(currentAIMessage)
+        }
+
+        const span = document.getElementById("ai-stream")
+        span.innerText += data.content
+
+        chat.scrollTop = chat.scrollHeight
+    }
+
+    // ERROR MESSAGE
+    if(data.type === "error"){
+
+        loader.innerText = ""
+        addMessage("Error: " + data.message, "ai")
+    }
 }
-if(data.type==="error"){
 
-loader.innerText=""
-
-addMessage("Error: "+data.message,"ai")
-
-}
-
-}
 
 }
 
@@ -660,81 +657,83 @@ connectSocket()
 
 recordBtn.onmousedown = async () => {
 
+
 if(isRecording) return
 
 try{
 
-stream = await navigator.mediaDevices.getUserMedia({audio:true})
+    stream = await navigator.mediaDevices.getUserMedia({audio:true})
 
-audioContext = new AudioContext({sampleRate:16000})
+    audioContext = new AudioContext({sampleRate:16000})
 
-source = audioContext.createMediaStreamSource(stream)
+    source = audioContext.createMediaStreamSource(stream)
 
-processor = audioContext.createScriptProcessor(2048,1,1)
+    processor = audioContext.createScriptProcessor(2048,1,1)
 
-source.connect(processor)
-processor.connect(audioContext.destination)
+    source.connect(processor)
+    processor.connect(audioContext.destination)
 
-isRecording = true
+    isRecording = true
 
-processor.onaudioprocess = (event)=>{
+    processor.onaudioprocess = (event)=>{
 
-if(!isRecording) return
+        if(!isRecording) return
 
-const input = event.inputBuffer.getChannelData(0)
+        const input = event.inputBuffer.getChannelData(0)
+        const pcm16 = new Int16Array(input.length)
 
-const pcm16 = new Int16Array(input.length)
+        for(let i=0;i<input.length;i++){
+            pcm16[i] = Math.max(-1,Math.min(1,input[i])) * 32767
+        }
 
-for(let i=0;i<input.length;i++){
-pcm16[i] = Math.max(-1,Math.min(1,input[i])) * 32767
-}
+        if(socket.readyState === WebSocket.OPEN){
+            socket.send(pcm16.buffer)
+        }
+    }
 
-if(socket.readyState === WebSocket.OPEN){
-socket.send(pcm16.buffer)
-}
-
-}
-
-recordBtn.classList.add("listening")
-recordBtn.innerText="Listening..."
+    recordBtn.classList.add("listening")
+    recordBtn.innerText="Listening..."
 
 }catch(err){
 
-console.error(err)
-status.innerText="Mic permission denied"
-
+    console.error(err)
+    status.innerText="Mic permission denied"
 }
+
 
 }
 
 recordBtn.onmouseup = () => {
 
+
 isRecording = false
 
 if(processor){
-processor.disconnect()
-processor = null
+    processor.disconnect()
+    processor = null
 }
 
 if(source){
-source.disconnect()
-source = null
+    source.disconnect()
+    source = null
 }
 
 if(stream){
-stream.getTracks().forEach(track => track.stop())
-stream = null
+    stream.getTracks().forEach(track => track.stop())
+    stream = null
 }
 
 if(audioContext){
-audioContext.close()
-audioContext = null
+    audioContext.close()
+    audioContext = null
 }
 
 recordBtn.classList.remove("listening")
 recordBtn.innerText="🎤 Speak"
 
+
 }
+
 
 </script>
 

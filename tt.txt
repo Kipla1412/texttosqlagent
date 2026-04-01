@@ -1,0 +1,533 @@
+from tools.base import Tool, ToolResult, ToolInvocation, ToolKind
+from pydantic import BaseModel
+from utils.conversation import build_conversation_text
+from utils.patientstorage import get_patient_folder
+from utils.assesmentplan import AssessmentPlanReportGenerator
+import sys
+import os
+from utils.clinical_reports import generate_clinical_reports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+class AssessmentReportSchema(BaseModel):
+    pass
+
+class GenerateAssessmentReportTool(Tool):
+    name = "generate_assessment_report"
+    description = "Generate a structured doctor-facing Assessment & Plan PDF"
+    kind = ToolKind.WRITE
+    schema = AssessmentReportSchema
+
+    async def execute(self, invocation: ToolInvocation) -> ToolResult:
+        try:
+            # 1. Get history from the active session context
+            messages = self.session.context_manager.get_messages()
+            conversation = build_conversation_text(messages)
+
+            if not conversation:
+                return ToolResult.error_result("No conversation history to analyze.")
+
+            # 2. Get patient_info from session (Ensure this is set during intake)
+            patient_info = getattr(self.session, "patient_info", {})
+            patient_id = patient_info.get("patient_id")
+
+            if not patient_id:
+                return ToolResult.error_result("Patient ID not found. Please complete intake.")
+
+            # 3. Call the internal helper method with your specific prompt
+            assessment_text = await self._generate_assessment(conversation)
+
+            if not assessment_text or "Assessment & Plan" not in assessment_text:
+                return ToolResult.error_result("Failed to generate a valid clinical assessment.")
+
+            # 4. Handle PDF generation
+            patient_dir = get_patient_folder(self.config.cwd, patient_id)
+            output_file = patient_dir / f"assessment_report_{patient_id}.pdf"
+
+            generator = AssessmentPlanReportGenerator(patient_info)
+            generator.generate(assessment_text, str(output_file))
+
+            return ToolResult.success_result(
+                f"Assessment report generated successfully at {output_file}"
+            )
+
+        except Exception as e:
+            return ToolResult.error_result(f"Execution Error: {str(e)}")
+
+    async def _generate_assessment(self, conversation: str) -> str:
+        """Helper method to generate assessment text using your strict prompt"""
+        
+        prompt = f"""
+You are a clinical Assessment & Plan generation agent.
+Analyze the following patient conversation and generate a doctor-facing Assessment & Plan.
+
+Conversation:
+{conversation}
+
+--------------------------------------------------
+Assessment & Plan
+--------------------------------------------------
+
+A. Clinical Overview
+Briefly summarize key symptoms, duration, severity, and risk factors.
+
+B. Differential Diagnosis
+List the TOP 3-5 diagnoses in descending likelihood.
+For each diagnosis include:
+- Diagnosis name
+- Estimated likelihood percentage (total ~100%)
+- Clear clinical rationale
+Use this exact format:
+1. Diagnosis Name - ~XX% Likelihood
+• Rationale: ...
+
+C. Diagnostic Plan
+Group tests under:
+- Laboratory Tests
+- Imaging Studies (only if indicated)
+- Other Diagnostics
+For each test include:
+- Test name
+- Sample/source
+- Purpose
+
+D. Treatment Plan (Conditional)
+ONLY conditional recommendations.
+Use format:
+- If Diagnosis X is confirmed:
+• Medication
+• Example adult dose
+• Route
+• Duration
+• Rationale
+
+E. Procedures / Interventions
+Clearly state if none are indicated.
+
+F. Risk & Urgency Assessment
+- Urgency level: LOW / MODERATE / HIGH
+- Red-flag symptoms requiring escalation
+
+--------------------------------------------------
+STRICT RULES:
+- Plain text only
+- No markdown symbols
+- No patient-facing language
+- No definitive diagnosis
+- Output ONLY the Assessment & Plan document
+"""
+        response_text = ""
+        
+        # Use your session's LLM client to run the prompt
+        async for event in self.session.client.chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2, # Lower temperature for clinical accuracy
+        ):
+            if event.type == StreamEventType.TEXT_DELTA and event.text_delta:
+                response_text += event.text_delta.content
+
+        # Final cleanup to ensure NO markdown symbols remain
+        clean_text = response_text.replace("```", "").replace("**", "").replace("###", "").strip()
+        
+        return clean_text if clean_text else "Error: Assessment content was empty."
+    
+    
+    
+    # async def execute(self, invocation: ToolInvocation) -> ToolResult:
+
+    #     try:
+
+    #         patient_info = getattr(self.config, "_session_memory", {}).get("patient_info", {})
+    #         patient_id = patient_info.get("patient_id")
+
+    #         if not patient_id:
+    #             return ToolResult.error_result(
+    #                 "No patient ID found. Please save patient information first."
+    #             )
+
+    #         conversation = getattr(self.config, "_session_memory", {}).get("conversation", "")
+
+    #         if not conversation:
+    #             return ToolResult.error_result(
+    #                 "No conversation found to generate assessment report."
+    #             )
+
+    #         reports = await generate_clinical_reports(
+    #             self.llm_client,
+    #             conversation
+    #         )
+
+    #         assessment_text = reports.get("assessment", "")
+
+    #         if not assessment_text:
+    #             return ToolResult.error_result("LLM did not return assessment text.")
+
+    #         patient_dir = get_patient_folder(self.config.cwd, patient_id)
+
+    #         output_file = patient_dir / "assessment_plan_report.pdf"
+
+    #         generator = AssessmentPlanReportGenerator(patient_info)
+
+    #         generator.generate(assessment_text, str(output_file))
+
+    #         return ToolResult.success_result(
+    #             f"Assessment report saved at {output_file}"
+    #         )
+
+    #     except Exception as e:
+    #         return ToolResult.error_result(str(e))
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    # async def execute(self, invocation: ToolInvocation) -> ToolResult:
+
+    #     try:
+
+    #         # Get patient info from session memory or file
+    #         patient_info = {}
+    #         if hasattr(self.config, '_session_memory') and "patient_info" in self.config._session_memory:
+    #             patient_info = self.config._session_memory["patient_info"]
+    #         else:
+    #             # Try to find most recent patient file
+    #             try:
+    #                 import json
+    #                 from pathlib import Path
+                    
+    #                 patients_dir = self.config.cwd / "patients"
+    #                 if patients_dir.exists():
+    #                     # Find most recent patient info file
+    #                     patient_files = list(patients_dir.glob("*_info.json"))
+    #                     if patient_files:
+    #                         latest_file = max(patient_files, key=lambda f: f.stat().st_mtime)
+    #                         patient_info = json.loads(latest_file.read_text())
+    #             except Exception:
+    #                 pass
+            
+    #         patient_id = patient_info.get("patient_id")
+            
+    #         if not patient_id:
+    #             return ToolResult.error_result("No patient ID found. Please save patient information first.")
+
+    #         # Get conversation from memory or file
+    #         conversation = ""
+            
+    #         if hasattr(self.config, '_session_memory') and "conversation" in self.config._session_memory:
+    #             conversation = self.config._session_memory["conversation"]
+    #         else:
+    #             # Try to get from messages if available
+    #             messages = getattr(self.config, '_session_memory', {}).get("messages", [])
+    #             if messages:
+    #                 conversation = build_conversation_text(messages)
+    #             else:
+    #                 # Fallback: read from conversation file
+    #                 try:
+    #                     patient_dir = get_patient_folder(self.config.cwd, patient_id)
+    #                     conversation_file = patient_dir / "intake_transcript.txt"
+    #                     if conversation_file.exists():
+    #                         conversation = conversation_file.read_text()
+    #                 except Exception:
+    #                     pass 
+
+    #         messages = self.config.session.context_manager.get_messages()
+
+    #         conversation = build_conversation_text(messages)
+
+    #         if not conversation:
+    #             return ToolResult.error_result("No conversation found to generate assessment report.")    
+
+    #         reports = await generate_clinical_reports(
+    #             self.session.client,
+    #             conversation
+    #         )
+
+    #         # save reports in memory
+    #         if not hasattr(self.config, "_session_memory"):
+    #             self.config._session_memory = {}
+
+    #         self.config._session_memory["reports"] = reports
+
+    #         assessment_text = reports.get("assessment", "")
+
+    #         if not assessment_text:
+    #             return ToolResult.error_result("LLM did not return assessment text.")
+
+    #         patient_dir = get_patient_folder(self.config.cwd, patient_id)
+
+    #         output_file = patient_dir / "assessment_plan_report.pdf"
+
+    #         # Get full patient info for the report
+    #         full_patient_info = self.config._session_memory.get("patient_info", patient_info) if hasattr(self.config, '_session_memory') else patient_info
+
+    #         generator = AssessmentPlanReportGenerator(full_patient_info)
+
+    #         generator.generate(assessment_text, str(output_file))
+
+    #         return ToolResult.success_result(
+    #             f"Assessment report saved at {output_file}"
+    #         )
+
+    #     except Exception as e:
+    #         return ToolResult.error_result(str(e))
+
+#     async def _generate_assessment(self, conversation: str) -> str:
+#         """Helper method to generate assessment text"""
+        
+#         # Use the conversation to generate real assessment
+#         prompt = f"""
+
+# You are a clinical Assessment & Plan generation agent.
+
+# Analyze the following patient conversation and generate a
+# doctor-facing Assessment & Plan.
+
+# Conversation:
+# {conversation}
+
+# --------------------------------------------------
+# Assessment & Plan
+# --------------------------------------------------
+
+# A. Clinical Overview
+# Briefly summarize key symptoms, duration, severity, and risk factors.
+
+# B. Differential Diagnosis
+# List the TOP 3-5 diagnoses in descending likelihood.
+
+# For each diagnosis include:
+# - Diagnosis name
+# - Estimated likelihood percentage (total ~100%)
+# - Clear clinical rationale
+
+# Use this exact format:
+
+# 1. Diagnosis Name - ~XX% Likelihood
+# • Rationale: ...
+
+# C. Diagnostic Plan
+# Group tests under:
+# - Laboratory Tests
+# - Imaging Studies (only if indicated)
+# - Other Diagnostics
+
+# For each test include:
+# - Test name
+# - Sample/source
+# - Purpose
+
+# D. Treatment Plan (Conditional)
+# ONLY conditional recommendations.
+
+# Use format:
+# - If Diagnosis X is confirmed:
+# • Medication
+# • Example adult dose
+# • Route
+# • Duration
+# • Rationale
+
+# E. Procedures / Interventions
+# Clearly state if none are indicated.
+
+# F. Risk & Urgency Assessment
+# - Urgency level: LOW / MODERATE / HIGH
+# - Red-flag symptoms requiring escalation
+
+# --------------------------------------------------
+
+# STRICT RULES:
+# - Plain text only
+# - No markdown symbols
+# - No patient-facing language
+# - No definitive diagnosis
+# - Output ONLY the Assessment & Plan document
+
+# """
+#     return """
+# Assessment & Plan
+
+# A. Clinical Overview
+# Patient presents with symptoms requiring further evaluation. Complete history and physical examination needed for definitive diagnosis.
+
+# B. Differential Diagnosis
+# 1. Common Condition - ~60% Likelihood
+# • Rationale: Based on reported symptoms
+
+# 2. Less Common Condition - ~30% Likelihood
+# • Rationale: Alternative explanation for symptoms
+
+# 3. Rare Condition - ~10% Likelihood
+# • Rationale: Cannot be ruled out without further testing
+
+# C. Diagnostic Plan
+# - Laboratory Tests
+# • Complete blood count
+# • Basic metabolic panel
+
+# D. Treatment Plan (Conditional)
+# - If Condition X is confirmed:
+# • Symptomatic treatment
+# • Follow-up in 1-2 weeks
+
+# E. Procedures / Interventions
+# None indicated at this time.
+
+# F. Risk & Urgency Assessment
+# - Urgency level: LOW
+# - No immediate red-flag symptoms identified
+# """
+
+
+
+
+class SOAPReportSchema(BaseModel):
+    pass
+
+
+class GenerateSOAPReportTool(Tool):
+
+    name = "generate_soap_report"
+    description = "Generate SOAP report PDF for patient"
+    kind = ToolKind.WRITE
+    schema = SOAPReportSchema
+
+    async def execute(self, invocation: ToolInvocation) -> ToolResult:
+
+        try:
+
+            # Get patient info from session memory or file
+            patient_info = {}
+            if hasattr(self.config, '_session_memory') and "patient_info" in self.config._session_memory:
+                patient_info = self.config._session_memory["patient_info"]
+            else:
+                # Try to find the most recent patient file
+                try:
+                    import json
+                    from pathlib import Path
+                    
+                    patients_dir = self.config.cwd / "patients"
+                    if patients_dir.exists():
+                        # Find the most recent patient info file
+                        patient_files = list(patients_dir.glob("*_info.json"))
+                        if patient_files:
+                            latest_file = max(patient_files, key=lambda f: f.stat().st_mtime)
+                            patient_info = json.loads(latest_file.read_text())
+                except Exception:
+                    pass
+            
+            patient_id = patient_info.get("patient_id")
+            
+            if not patient_id:
+                return ToolResult.error_result("No patient ID found. Please save patient information first.")
+
+            # Get conversation from memory
+            conversation = ""
+
+            if hasattr(self.config, '_session_memory') and "conversation" in self.config._session_memory:
+                conversation = self.config._session_memory["conversation"]
+            else:
+                # Try to get from messages if available
+                messages = getattr(self.config, '_session_memory', {}).get("messages", [])
+                if messages:
+                    conversation = build_conversation_text(messages)
+
+                else:
+                    try:
+                        patient_dir = get_patient_folder(self.config.cwd, patient_id)
+                        transcript_file = patient_dir / "intake_transcript.txt"
+
+                        if transcript_file.exists():
+                            conversation = transcript_file.read_text()
+
+                    except Exception:
+                        pass
+
+#             prompt = f"""
+
+# Convert the following patient conversation into a structured SOAP Note.
+
+# Conversation:
+# {conversation}
+
+# Follow this exact format:
+
+# SOAP Note
+
+# Subjective
+# • List all symptoms reported by the patient.
+
+# Objective
+# • Include only measurable or observable details mentioned.
+
+# Assessment
+# • Provide 2-4 possible clinical impressions.
+# • Label each as High / Moderate / Low likelihood.
+# • Add 1-2 lines of reasoning.
+
+# Plan
+# • Supportive care steps
+# • Home instructions
+# • Monitoring advice
+# • Red flags for urgent care
+# • Follow-up guidance
+# """
+
+            if not conversation:
+                return ToolResult.error_result(
+                    "No conversation found to generate SOAP report."
+                )
+                
+            soap_text = await self._generate_soap(conversation)
+
+            parsed = parse_soap_note(soap_text)
+
+            # Add date for the report
+            parsed["date"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+            patient_dir = get_patient_folder(self.config.cwd, patient_id)
+
+            output_file = patient_dir / "soap_report.pdf"
+
+            generator = SOAPReportGenerator(patient_info)
+
+            generator.generate(parsed, str(output_file))
+
+            return ToolResult.success_result(
+                f"SOAP report saved at {output_file}"
+            )
+
+        except Exception as e:
+            return ToolResult.error_result(str(e))
+
+    async def _generate_soap(self, conversation: str) -> str:
+        """Helper method to generate SOAP note"""
+        # Placeholder implementation
+        return """
+SOAP Note
+
+Subjective
+• Patient reports symptoms requiring evaluation
+
+Objective
+• Patient appears alert and oriented
+
+Assessment
+• Common Condition - Moderate Likelihood
+• Rationale: Based on reported symptoms
+
+Plan
+• Supportive care measures
+• Monitor symptoms
+• Follow-up as needed
+"""

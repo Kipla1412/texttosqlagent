@@ -5,6 +5,11 @@ class TranscriptionEngine:
         self.processor = processor
         self.chunk = chunk
 
+    def prepare_audio(self, audio, rate):
+        
+        processed = self.processor.process(audio, rate)
+        return self.processor.to_bytes(processed)
+
     def split(self, raw, rate):
         step = int(rate * self.chunk)
         return [(raw[i:i+step], rate) for i in range(0, len(raw), step)]
@@ -15,8 +20,8 @@ class TranscriptionEngine:
 
         for chunk, r in self.split(raw, rate):
 
-            processed = self.processor.process(chunk, r)
-            audio_bytes = self.processor.to_bytes(processed)
+            # processed = self.processor.process(chunk, r)
+            audio_bytes = self.prepare_audio(chunk, r)
 
             text = self.provider.transcribe(audio_bytes)
 

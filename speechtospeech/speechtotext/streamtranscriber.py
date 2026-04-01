@@ -9,8 +9,8 @@ class StreamTranscriber:
 
     async def process_chunk(self, chunk, rate):
 
-        processed = self.engine.processor.process(chunk, rate)
-        audio_bytes = self.engine.processor.to_bytes(processed)
+        # processed = self.engine.processor.process(chunk, rate)
+        audio_bytes = self.engine.prepare_audio(chunk, rate)
 
         try:
             text = await asyncio.to_thread(

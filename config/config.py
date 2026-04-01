@@ -152,42 +152,6 @@ class Config(BaseModel):
 
         return errors
     
-    # @property
-    # def jina_api_key(self) -> str | None:
-    #     return os.environ.get("JINA_API_KEY")
-
-    # @property
-    # def jina_api_url(self) -> str:
-    #     return os.environ.get("JINA_BASE_URL","https://api.jina.ai/v1/embeddings")
-
-    # @property
-    # def jina_model(self) -> str:
-    #     return os.environ.get("JINA_MODEL", "jina-embeddings-v3")
-
-    # @property
-    # def jina_dimensions(self) -> int:
-    #     return int(os.environ.get("JINA_DIMENSIONS", "1024"))
-
-    # @property
-    # def opensearch_host(self) -> str:
-    #     return os.environ.get("OPENSEARCH_HOST", "localhost")
-
-    # @property
-    # def opensearch_port(self) -> int:
-    #     return int(os.environ.get("OPENSEARCH_PORT", "9200"))
-
-    # @property
-    # def opensearch_user(self) -> str:
-    #     return os.environ.get("OPENSEARCH_USER", "admin")
-
-    # @property
-    # def opensearch_password(self) -> str:
-    #     return os.environ.get("OPENSEARCH_PASSWORD", None)
-
-    # @property
-    # def opensearch_ssl(self) -> bool:
-    #     return os.environ.get("OPENSEARCH_SSL", False) == False
-
     @property
     def mlflow_enabled(self) -> bool:
         return os.environ.get("MLFLOW_ENABLED", "true").lower() == "true"
@@ -199,6 +163,10 @@ class Config(BaseModel):
     @property
     def mlflow_experiment_name(self) -> str:
         return os.environ.get("MLFLOW_EXPERIMENT_NAME", "AIAgent")
+
+    @property
+    def vad_enabled(self):
+        return os.environ.get("VAD_ENABLED", "true") == "true"
     
     @property
     def stt_engine(self):

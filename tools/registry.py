@@ -5,7 +5,7 @@ from hooks.hook_system import HookSystem
 from safety.approval import ApprovalContext, ApprovalDecision, ApprovalManager
 from tools.base import Tool, ToolInvocation, ToolResult
 import logging
-from tools.builtin import ReadFileTool, get_all_builtin_tools
+from tools.builtin import get_all_builtin_tools
 from tools.subagents import SubagentTool, get_default_subagent_definitions
 
 logger = logging.getLogger(__name__)
@@ -14,12 +14,7 @@ logger = logging.getLogger(__name__)
 class ToolRegistry:
     def __init__(self, config: Config):
         self._tools: dict[str, Tool] = {}
-        self._mcp_tools: dict[str, Tool] = {}
         self.config = config
-
-    @property
-    def connected_mcp_servers(self) -> list[Tool]:
-        return self._mcp_tools.values()
 
     def register(self, tool: Tool) -> None:
         if tool.name in self._tools:
@@ -27,10 +22,6 @@ class ToolRegistry:
 
         self._tools[tool.name] = tool
         logger.debug(f"Registered tool: {tool.name}")
-
-    def register_mcp_tool(self, tool: Tool) -> None:
-        self._mcp_tools[tool.name] = tool
-        logger.debug(f"Registered MCP tool: {tool.name}")
 
     def unregister(self, name: str) -> bool:
         if name in self._tools:
@@ -42,8 +33,6 @@ class ToolRegistry:
     def get(self, name: str) -> Tool | None:
         if name in self._tools:
             return self._tools[name]
-        elif name in self._mcp_tools:
-            return self._mcp_tools[name]
 
         return None
 
@@ -52,9 +41,6 @@ class ToolRegistry:
 
         for tool in self._tools.values():
             tools.append(tool)
-
-        for mcp_tool in self._mcp_tools.values():
-            tools.append(mcp_tool)
 
         if self.config.allowed_tools:
             allowed_set = set(self.config.allowed_tools)

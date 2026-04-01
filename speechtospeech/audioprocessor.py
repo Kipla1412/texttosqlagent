@@ -1,27 +1,4 @@
-# from .signal import Signal
-# import io
-# import soundfile as sf
 
-# class AudioProcessor:
-    
-#     def __init__(self, target_rate=16000):
-#         self.target_rate = target_rate
-    
-#     # def process(self, raw, rate):
-
-#     #     mono = raw if raw.ndim == 1 else raw.mean(axis=1)
-#     #     resampled = mono
-#     #     return resampled, self.target_rate
-
-#     def process(self, raw, rate):
-#         mono = Signal.mono(raw) if raw.ndim > 1 else raw
-#         return Signal.resample(mono, rate, self.target_rate)
-
-#     def to_bytes(self, audio):
-#         buffer = io.BytesIO()
-#         sf.write(buffer, audio, self.target_rate, format="WAV")
-#         buffer.seek(0)
-#         return buffer.read()
 
 from __future__ import annotations
 

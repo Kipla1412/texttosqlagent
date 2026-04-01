@@ -11,15 +11,13 @@ from context.manager import ContextManager
 from hooks.hook_system import HookSystem
 from safety.approval import ApprovalManager
 from tools.discovery import ToolDiscoveryManager
-from tools.mcp.mcp_manager import MCPManager
 from tools.registry import create_default_registry
-from knowledgebase.opensearch import OpenSearchConnector
-from knowledgebase.embedding import EmbeddingConnector
 from utils.mlflow_tracker import get_mlflow_tracker
 from typing import List, Dict, Any, Optional
 
 class Session:
     def __init__(self, config: Config):
+
         self.config = config
         self.client = LLMClient(config=config)
         self.tool_registry = create_default_registry(config=config)
@@ -28,15 +26,12 @@ class Session:
             self.config,
             self.tool_registry,
         )
-        self.mcp_manager = MCPManager(self.config)
         self.chat_compactor = ChatCompactor(self.client)
         self.approval_manager = ApprovalManager(
             self.config.approval,
             self.config.cwd,
         )
-        # Add knowledge base clients
-        self.opensearch_connector = OpenSearchConnector(config) # knowledgebaseclient
-        self.embedding_connector = EmbeddingConnector(config) # embeddingclient
+
         # Add global MLflow tracker
         self.mlflow_tracker = get_mlflow_tracker(config)
         self.loop_detector = LoopDetector()
@@ -48,10 +43,12 @@ class Session:
         self.turn_count = 0
         self.mlflow_run_id: Optional[str] = None
 
-    async def initialize(self) -> None:
-        await self.mcp_manager.initialize()
-        self.mcp_manager.register_tools(self.tool_registry)
+        self.audio_buffer: list[bytes] = []
+        self.silence_chunks: int = 0
+        self.agent_speaking = False
 
+    async def initialize(self) -> None:
+        
         self.discovery_manager.discover_all()
         self.context_manager = ContextManager(
             config=self.config,
@@ -102,72 +99,13 @@ class Session:
             "message_count": self.context_manager.message_count,
             "token_usage": self.context_manager.total_usage,
             "tools_count": len(self.tool_registry.get_tools()),
-            "mcp_servers": len(self.tool_registry.connected_mcp_servers),
             # "mlflow_stats": self.mlflow_tracker.get_session_stats()
         }
 
-    def get_knowledge_base_clients(self) -> tuple[OpenSearchConnector, EmbeddingConnector]:
-        """
-        Get access to knowledge base clients.
-        
-        Returns:
-            Tuple of (opensearch_connector, embedding_connector)
-        """
-        return self.opensearch_connector, self.embedding_connector
-        
-    # def track_agent_interaction(self, user_message: str, agent_response: str, 
-    #                          tools_used: list[str], session_duration: float) -> None:
-    #     """
-    #     Track complete agent interaction with MLflow.
-        
-    #     Args:
-    #         user_message: The user's input message
-    #         agent_response: The agent's response
-    #         tools_used: List of tools used in this interaction
-    #         session_duration: Time taken for this interaction
-    #     """
-    #     self.mlflow_tracker.track_agent_session(
-    #         user_message=user_message,
-    #         agent_response=agent_response,
-    #         tools_used=tools_used,
-    #         session_duration=session_duration
-    #     )
-        
-    # def track_llm_call(self, model: str, messages: List[Dict], response: str, 
-    #                   tokens_used: int, response_time: float) -> None:
-    #     """
-    #     Track LLM API calls.
-        
-    #     Args:
-    #         model: Model name used
-    #         messages: Messages sent to LLM
-    #         response: LLM response
-    #         tokens_used: Number of tokens used
-    #         response_time: Time taken for response
-    #     """
-    #     self.mlflow_tracker.track_llm_call(
-    #         model=model,
-    #         messages=messages,
-    #         response=response,
-    #         tokens_used=tokens_used,
-    #         response_time=response_time
-    #     )
-        
-    # def track_error(self, error_type: str, error_message: str, 
-    #                context: Optional[Dict] = None) -> None:
-    #     """
-    #     Track errors across the application.
-        
-    #     Args:
-    #         error_type: Type of error
-    #         error_message: Error message
-    #         context: Additional context information
-    #     """
-    #     self.mlflow_tracker.track_error(
-    #         error_type=error_type,
-    #         error_message=error_message,
-    #         context=context
-    #     )
+
+    def reset_audio_buffer(self):
+        self.audio_buffer = []
+        self.silence_chunks = 0
         
     async def search_knowledge_base(self, query: str, limit: int = 5) -> list[dict]:
         """

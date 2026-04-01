@@ -10,6 +10,7 @@ import json
 import time
 from datetime import datetime
 import asyncio
+from speechtospeech.webvad import VoiceActivityDetector
 
 class Agent:
     def __init__(
@@ -22,6 +23,10 @@ class Agent:
         self.session.approval_manager.confirmation_callback = confirmation_callback
 
     async def run(self, message: str):
+
+        # # create fresh session for request
+        # self.session = Session(self.config)
+        # await self.session.initialize()
         
         await self.session.hook_system.trigger_before_agent(message)
         yield AgentEvent.agent_start(message)
@@ -117,6 +122,7 @@ class Agent:
                     else None
                 ),
             )
+            
             if response_text:
                 yield AgentEvent.text_complete(response_text)
                 self.session.loop_detector.record_action(
@@ -192,89 +198,45 @@ class Agent:
             self.session.context_manager.prune_tool_outputs()
         yield AgentEvent.agent_error(f"Maximum turns ({max_turns}) reached")
 
-    # async def run_audio(self, audio, rate):
-
-    #     import io
-    #     import soundfile as sf
-    #     import numpy as np
-
-    #     # 1. STT
-    #     stt_engine = self.config.stt_engine
-
-    #     processed = stt_engine.processor.process(audio, rate)
-    #     audio_bytes = stt_engine.processor.to_bytes(processed)
-
-    #     try:
-           
-    #         user_text = await asyncio.to_thread(
-    #             stt_engine.provider.transcribe,
-    #             audio_bytes
-    #         )
-    #     except Exception as e:
-    #         yield AgentEvent.agent_error(f"STT Error: {str(e)}")
-    #         return
-
-    #     # handle empty speech
-    #     if not user_text.strip():
-    #         yield AgentEvent.agent_error("No speech detected")
-    #         return
-
-    #     # 2. Run normal agent (NO extra agent_start)
-    #     async for event in self.run(user_text):
-    #         yield event
-
-    #         # 3. Convert final response → speech
-    #         if event.type == AgentEventType.TEXT_COMPLETE:
-
-    #             try:
-    #                 tts = self.config.tts_engine
-
-    #                 audio_out, sr = await asyncio.to_thread(tts.synthesize, event.data["content"])
-
-    #                 # use helper method
-    #                 yield AgentEvent.voice_output(audio_out, sr)
-
-    #             except Exception as e:
-    #                 yield AgentEvent.agent_error(f"TTS Error: {str(e)}")
-
-
     async def run_audio(self, audio, rate):
         import io
         import soundfile as sf
         import numpy as np
+        
+        if not hasattr(self, "vad"):
+            
+            self.vad = VoiceActivityDetector()
 
-        # Initialize session-level buffers
-        if not hasattr(self.session, '_audio_buffer'):
-            self.session._audio_buffer = []
-            self.session._silence_chunks = 0
-        
         # Add new audio chunk to buffer
-        self.session._audio_buffer.append(audio)
-        
-        # Calculate energy for this chunk
-        audio_array = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0
-        energy = np.mean(audio_array ** 2)
-        energy_db = 10 * np.log10(energy + 1e-10)
-        
-        print(f"DEBUG: Chunk energy: {energy_db:.2f} dB, Buffer size: {len(self.session._audio_buffer)}")
-        
-        # Check if this is silence (below threshold)
-        if energy_db < -35:  # More sensitive threshold
-            self.session._silence_chunks += 1
-            print(f"DEBUG: Silence chunks: {self.session._silence_chunks}")
+        self.session.audio_buffer.append(audio)
+
+        # Speech detection + barge-in handling
+        if self.vad.is_speech(audio):
+
+            # User interrupts while agent speaking
+            if self.session.agent_speaking:
+                print("DEBUG: Barge-in detected")
+
+                # stop current TTS
+                self.session.agent_speaking = False
+
+                # reset audio buffer
+                self.session.reset_audio_buffer()
+
+            self.session.silence_chunks = 0
+
         else:
-            self.session._silence_chunks = 0
+            self.session.silence_chunks += 1
         
         # Process if we have speech followed by silence (user finished speaking)
-        if len(self.session._audio_buffer) > 5 and self.session._silence_chunks >= 3:  # More responsive
+        if len(self.session.audio_buffer) > 10 and self.session.silence_chunks >= 3:  # More responsive
             print("DEBUG: User finished speaking, processing...")
             
             # Combine all buffered audio
-            total_audio = b''.join(self.session._audio_buffer)
+            total_audio = b''.join(self.session.audio_buffer)
             
             # Reset buffers
-            self.session._audio_buffer = []
-            self.session._silence_chunks = 0
+            self.session.reset_audio_buffer()
             
             # Only process if we have enough audio (at least 0.5 seconds)
             min_bytes = int(16000 * 0.5 * 2)
@@ -343,15 +305,28 @@ class Agent:
                     audio_out, sr = await asyncio.to_thread(
                         tts.synthesize, 
                         event.data["content"]
+
                     )
+
+                    self.session.agent_speaking = True
+
                     audio_bytes = tts.processor.array_to_wav_bytes(audio_out, sr)
+                    
                     yield AgentEvent.voice_output(audio_bytes, sr)
+
+                    self.session.agent_speaking = False
 
                 except Exception as e:
                     yield AgentEvent.agent_error(f"TTS Error: {str(e)}")
-                    
+        
     async def __aenter__(self) -> Agent:
+        
         await self.session.initialize()
+        for tool in self.session.tool_registry.get_tools():
+            # Check if the tool class has a 'session' attribute
+            if hasattr(tool, 'session'):
+                tool.session = self.session
+                print(f"DEBUG: Linked Session to Tool: {tool.name}")
         return self
 
     async def __aexit__(
@@ -360,9 +335,8 @@ class Agent:
         exc_val,
         exc_tb,  
     ) -> None:
-        if self.session and self.session.client and self.session.mcp_manager:
+        if self.session and self.session.client:
             await self.session.client.close()
-            await self.session.mcp_manager.shutdown()
             # Cleanup MLflow run
             self.session.cleanup()
             self.session = None

@@ -1,4 +1,0 @@
-Subjective: Patient reports a fever, which has persisted for three days and has not changed in severity. No other specific symptoms reported. No current medications, no allergies, no known chronic medical conditions.
-Objective: Not assessed (intake only).
-Assessment: Fever, duration three days, with stable severity, no reported complications.
-Plan: Forward summary to physician for full evaluation.
