@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from pydantic import BaseModel
-from tools.base import Tool, ToolResult, ToolInvocation, ToolKind
+from tools.base import Tool, ToolResult, ToolInvocation, ToolKind, ToolConfirmation
 from utils.conversation import build_conversation_text
 from utils.patientstorage import get_patient_folder
 from utils.assesmentplan import AssessmentPlanReportGenerator
@@ -24,14 +24,34 @@ class GenerateAssessmentReportTool(Tool):
     def schema(self):
         return AssessmentReportSchema
 
+    async def get_confirmation(self, invocation: ToolInvocation) -> ToolConfirmation | None:
+
+        # Resolve patient_id
+        patient_info = getattr(self.session, "patient_info", {}) if self.session else {}
+        patient_id = invocation.params.get("patient_id") or patient_info.get("patient_id")
+
+        # Determine output path
+        base_cwd = Path(str(self.config.cwd))
+        patient_dir = get_patient_folder(base_cwd, patient_id) if patient_id else base_cwd / "patients"
+        output_file = patient_dir / f"assessment_{patient_id}.pdf"
+
+        return ToolConfirmation(
+            tool_name=self.name,
+            params=invocation.params,
+            description=f"Generate clinical Assessment & Plan PDF for patient '{patient_id}'.",
+            affected_paths=[output_file],
+            is_dangerous=True,
+        )
+
     async def execute(self, invocation: ToolInvocation) -> ToolResult:
         try:
             # 1. Validation: Ensure session was injected
             if not self.session:
                 return ToolResult.error_result("Tool Error: Session context not linked.")
-
+            
+            params = AssessmentReportSchema(**invocation.params)
             patient_info = getattr(self.session, "patient_info", {})
-            patient_id = invocation.params.get("patient_id") or patient_info.get("patient_id")
+            patient_id = params.patient_id or patient_info.get("patient_id")
 
             if not patient_id:
                 return ToolResult.error_result("Missing patient_id in tool parameters.")

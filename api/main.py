@@ -2,6 +2,8 @@
 FastAPI application module
 """
 
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 import logging
@@ -17,7 +19,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,7 +43,9 @@ async def lifespan(app: FastAPI):
         # 4. Store inside FastAPI app state for global access
         app.state.config = config
         app.state.agent = agent
+        app.state.pending_approvals = agent.session.pending_approvals
         logger.info("Agent initialized and Tools linked successfully")
+        logger.info(f"Approval policy: {config.approval}")
         
     except Exception as e:
         logger.error(f"Critical Failure during Agent Startup: {e}")
@@ -75,8 +78,11 @@ def create_app():
     )
 
 
-    app.include_router(agent_router)
+    app.include_router(agent_router, prefix="/api")
     app.include_router(websocket_router)
+    
+    # Mount static files for approval dashboard
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
     return app
 

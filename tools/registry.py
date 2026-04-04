@@ -107,7 +107,9 @@ class ToolRegistry:
                     await hook_system.trigger_after_tool(name, params, result)
                     return result
                 elif decision == ApprovalDecision.NEEDS_CONFIRMATION:
-                    approved = approval_manager.request_confirmation(confirmation)
+                    approved = await approval_manager.request_confirmation(confirmation)
+                    print("DEBUG approval decision:", decision)
+                    print("DEBUG approval approved:", approved)
 
                     if not approved:
                         result = ToolResult.error_result("User rejected the operation")

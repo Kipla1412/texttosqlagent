@@ -5,7 +5,8 @@ import re
 from typing import Any, Awaitable, Callable
 from config.config import ApprovalPolicy
 from tools.base import ToolConfirmation
-
+import uuid
+import asyncio
 
 class ApprovalDecision(str, Enum):
     APPROVED = "approved"
@@ -149,9 +150,37 @@ class ApprovalManager:
 
         return ApprovalDecision.APPROVED
 
-    def request_confirmation(self, confirmation: ToolConfirmation) -> bool:
-        if self.confirmation_callback:
-            result = self.confirmation_callback(confirmation)
-            return result
+    async def request_confirmation(self, confirmation: ToolConfirmation) -> bool:
 
-        return True
+        print("DEBUG: request_confirmation called")
+
+        if not self.confirmation_callback:
+            print("DEBUG: confirmation_callback is None")
+            return True
+
+        print("DEBUG: calling confirmation_callback")
+
+        # Check if callback is async or sync
+        import inspect
+        if inspect.iscoroutinefunction(self.confirmation_callback):
+            result = await self.confirmation_callback(confirmation)
+        else:
+            # For sync callbacks, run in executor
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, self.confirmation_callback, confirmation)
+
+        print("DEBUG: callback result:", result)
+
+        return result
+
+    # async def request_confirmation(self, confirmation: ToolConfirmation) -> bool:
+    #     if not self.confirmation_callback:
+    #         return True
+
+    #     result = await self.confirmation_callback(confirmation)
+    #     return result
+    #     # if self.confirmation_callback:
+    #     #     result = await self.confirmation_callback(confirmation)
+    #     #     return result
+
+    #     # return True

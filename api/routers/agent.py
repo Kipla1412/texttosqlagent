@@ -26,3 +26,20 @@ async def chat(req: ChatRequest, request: Request):
             }) + "\n"
 
     return StreamingResponse(event_stream(), media_type="application/json; charset=utf-8")
+
+@router.post("/approve")
+async def approve(data: dict, request: Request):
+
+    approval_id = data["approval_id"]
+    approved = data["approved"]
+
+    agent = request.app.state.agent
+    pending = agent.session.pending_approvals
+
+    if approval_id in pending:
+        future = pending[approval_id]
+
+        if not future.done():
+            future.set_result(approved)
+
+    return {"status": "ok"}

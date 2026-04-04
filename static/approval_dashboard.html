@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tool Approval Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .approval-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        .dangerous { border-left: 4px solid #dc3545; }
+        .safe { border-left: 4px solid #28a745; }
+        .btn { padding: 8px 16px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-approve { background: #28a745; color: white; }
+        .btn-reject { background: #dc3545; color: white; }
+        .params { background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🔐 Tool Approval Dashboard</h1>
+    <div id="approvals">
+        <!-- Approvals will be loaded here -->
+    </div>
+
+    <script>
+        async function loadApprovals() {
+            try {
+                const response = await fetch('/api/approvals/pending');
+                const approvals = await response.json();
+                
+                const container = document.getElementById('approvals');
+                container.innerHTML = '';
+                
+                if (approvals.length === 0) {
+                    container.innerHTML = '<p>No pending approvals</p>';
+                    return;
+                }
+                
+                approvals.forEach(approval => {
+                    const card = document.createElement('div');
+                    card.className = `approval-card ${approval.is_dangerous ? 'dangerous' : 'safe'}`;
+                    
+                    card.innerHTML = `
+                        <h3>${approval.tool_name}</h3>
+                        <p><strong>Description:</strong> ${approval.description}</p>
+                        <p><strong>Status:</strong> ${approval.is_dangerous ? '⚠️ Dangerous' : '✅ Safe'}</p>
+                        <div class="params">
+                            <strong>Parameters:</strong><br>
+                            <pre>${JSON.stringify(approval.params, null, 2)}</pre>
+                        </div>
+                        <button class="btn btn-approve" onclick="handleApproval('${approval.id}', true)">✅ Approve</button>
+                        <button class="btn btn-reject" onclick="handleApproval('${approval.id}', false)">❌ Reject</button>
+                    `;
+                    
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading approvals:', error);
+            }
+        }
+        
+        async function handleApproval(approvalId, approved) {
+            try {
+                const response = await fetch('/api/approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ approval_id: approvalId, approved: approved })
+                });
+                
+                if (response.ok) {
+                    loadApprovals(); // Refresh the list
+                }
+            } catch (error) {
+                console.error('Error handling approval:', error);
+            }
+        }
+        
+        // Auto-refresh every 2 seconds
+        setInterval(loadApprovals, 2000);
+        loadApprovals(); // Initial load
+    </script>
+</body>
+</html>

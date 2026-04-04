@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from pydantic import BaseModel
 
-from tools.base import Tool, ToolResult, ToolInvocation, ToolKind
+from tools.base import Tool, ToolResult, ToolInvocation, ToolKind, ToolConfirmation
 from utils.conversation import build_conversation_text
 from utils.patientstorage import get_patient_folder
 from utils.patientsummary import PatientSummaryReportGenerator
@@ -24,6 +24,28 @@ class GeneratePatientSummaryTool(Tool):
     @property
     def schema(self):
         return SummarySchema
+
+    async def get_confirmation(self, invocation: ToolInvocation) -> ToolConfirmation | None:
+
+        # ensure session exists
+        if not self.session:
+            return None
+
+        patient_info = getattr(self.session, "patient_info", {})
+        patient_id = invocation.params.get("patient_id") or patient_info.get("patient_id", "unknown")
+
+        base_cwd = Path(str(self.config.cwd))
+        patient_dir = get_patient_folder(base_cwd, patient_id)
+
+        output_file = patient_dir / "patientsummary.pdf"
+
+        return ToolConfirmation(
+            tool_name=self.name,
+            params=invocation.params,
+            description=f"Generate patient summary PDF for patient {patient_id}",
+            affected_paths=[output_file],
+            is_dangerous=False,
+        )
 
     async def execute(self, invocation: ToolInvocation) -> ToolResult:
         try:
