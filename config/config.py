@@ -9,6 +9,8 @@ from speechtospeech.providers.tts.factory import create_tts_provider
 from speechtospeech.audioprocessor import AudioProcessor
 from speechtospeech.speechtotext.sttengine import TranscriptionEngine
 from speechtospeech.texttospeech.ttsengine import TTSEngine
+from dotenv import load_dotenv
+load_dotenv()
 
 class ModelConfig(BaseModel):
     name: str = "gpt-4.1" #"gpt-4o-mini" #"mistralai/devstral-2512:free"
@@ -231,6 +233,14 @@ class Config(BaseModel):
     @property
     def tts_sample_rate(self):
         return int(os.environ.get("TTS_SAMPLE_RATE", "22050"))
+
+    @property
+    def iam_jwks_url(self):
+        return os.environ.get("IAM_JWKS_URL", "https://iam.drgodly.com/api/auth/jwks")
+
+    @property
+    def iam_issuer(self):
+        return os.environ.get("IAM_ISSUER", "https://iam.drgodly.com")
 
     @property
     def groq_api_key(self):

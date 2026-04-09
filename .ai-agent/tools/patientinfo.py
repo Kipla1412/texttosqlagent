@@ -39,7 +39,7 @@ class SavePatientInfoTool(Tool):
             params=invocation.params,
             description=f"Register new patient '{name}' and create patient records",
             affected_paths=[patients_dir],
-            is_dangerous=True,
+            is_dangerous=False,
         )
 
     async def execute(self, invocation: ToolInvocation) -> ToolResult:

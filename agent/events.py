@@ -27,6 +27,8 @@ class AgentEventType(str, Enum):
     # User input
     USER_QUESTION = "user_question"
 
+    #approval
+    APPROVAL_REQUEST = "approval_request"
 
 @dataclass
 class AgentEvent:
@@ -93,6 +95,7 @@ class AgentEvent:
             data={"content": content},
         )
 
+   
     @classmethod
     def tool_call_start(cls, call_id: str, name: str, arguments: dict[str, Any]):
         return cls(
@@ -125,3 +128,22 @@ class AgentEvent:
                 "exit_code": result.exit_code,
             },
         )
+
+    @classmethod
+    def approval_request(
+        cls,
+        approval_id: str,
+        tool_name: str,
+        description: str,
+        params: dict[str, Any] | None = None,
+    ):
+        return cls(
+            type=AgentEventType.APPROVAL_REQUEST,
+            data={
+                "approval_id": approval_id,
+                "tool_name": tool_name,
+                "description": description,
+                "params": params or {},
+            },
+        )
+        

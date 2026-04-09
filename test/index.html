@@ -2,338 +2,269 @@
 <html>
 
 <head>
-    <title>Alees' AI Agent</title>
-  <style> body { font-family: sans-serif; text-align: center; padding: 50px; background: #121212; color: white; } #status { margin: 20px; color: #00ff00; } button { padding: 15px 30px; font-size: 18px; cursor: pointer; border-radius: 10px; border: none; background: #6200ee; color: white; } button:disabled { background: #333; } #transcript { margin-top: 30px; border: 1px solid #333; padding: 20px; min-height: 100px; background: #1e1e1e; } </style>
-</head>
-
-<body>
-    <h1>Agentic Voice AI</h1>
-    <div id="status">Disconnected</div>
-    <button id="recordBtn">Hold to Talk</button>
-    <div id="userQuestion" style="margin-top: 20px; padding: 15px; background: #2a2a2a; border-radius: 10px; display: none;">
-        <strong>You said:</strong> <span id="userText"></span>
-    </div>
-    <div id="transcript">AI Response will appear here...</div>
-
-    <script>
-        const recordBtn = document.getElementById('recordBtn');
-        const status = document.getElementById('status');
-        const transcript = document.getElementById('transcript');
-        const userQuestion = document.getElementById('userQuestion');
-        const userText = document.getElementById('userText');
-        let socket = new WebSocket("ws://127.0.0.1:8000/ws/chatting");
-        socket.binaryType = "arraybuffer";
-        let audioContext;
-        let processor;
-        let source;
-        let fullResponse = "";
-
-        socket.onopen = () => {
-            status.innerText = "Connected";
-        };
-
-        socket.onclose = () => {
-            status.innerText = "Disconnected";
-        };
-
-        socket.onerror = (error) => {
-            status.innerText = "Connection Error";
-            console.error("WebSocket error:", error);
-        };
-
-        socket.onmessage = (event) => {
-            console.log("Received message type:", event.data instanceof ArrayBuffer ? "binary" : "text");
-            
-            if (event.data instanceof ArrayBuffer) {
-                console.log("Playing audio, size:", event.data.byteLength);
-                // Play audio (WAV bytes from TTS)
-                const blob = new Blob([event.data], { type: 'audio/wav' });
-                const audio = new Audio(URL.createObjectURL(blob));
-                audio.play().catch(err => console.error("Audio play error:", err));
-            } else {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log("Received JSON:", data);
-                    
-                    if (data.type === 'user_question') {
-                        // Show what user said
-                        userText.innerText = data.content;
-                        userQuestion.style.display = 'block';
-                        // Clear previous AI response
-                        transcript.innerText = "AI Response will appear here...";
-                        fullResponse = "";
-                    } else if (data.type === 'text') {
-                        fullResponse += data.content;
-                        transcript.innerText = fullResponse;
-                    } else if (data.type === 'error') {
-                        status.innerText = data.message;
-                        transcript.innerText = "Error: " + data.message;
-                    }
-                } catch (e) {
-                    console.error("JSON parse error:", e, "Raw data:", event.data);
-                }
-            }
-        };
-
-        recordBtn.onmousedown = async () => {
-
-            try {
-
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-                audioContext = new AudioContext({ sampleRate: 16000 });
-
-                source = audioContext.createMediaStreamSource(stream);
-
-                processor = audioContext.createScriptProcessor(4096, 1, 1);
-
-                source.connect(processor);
-                processor.connect(audioContext.destination);
-
-                processor.onaudioprocess = (event) => {
-                    const input = event.inputBuffer.getChannelData(0);
-                    const pcm16 = new Int16Array(input.length);
-
-                    for (let i = 0; i < input.length; i++) {
-                        pcm16[i] = Math.max(-1, Math.min(1, input[i])) * 32767;
-                    }
-
-                    if (socket.readyState === WebSocket.OPEN) {
-                        socket.send(pcm16.buffer);
-                        console.log("Sent audio chunk, size:", pcm16.buffer.byteLength);
-                    }
-                };
-
-                recordBtn.innerText = "Listening...";
-                recordBtn.style.background = "#ff1744";
-
-            } catch (err) {
-                console.error("Mic access denied:", err);
-                status.innerText = "Error: Mic access denied";
-            }
-
-        };
-
-        recordBtn.onmouseup = () => {
-
-            if (processor) processor.disconnect();
-            if (source) source.disconnect();
-
-            recordBtn.innerText = "Hold to Talk";
-            recordBtn.style.background = "#6200ee";
-
-        };
-    </script>
-</body>
-
-</html> -->
-
-<!-- <!DOCTYPE html>
-<html>
-
-<head>
-<title>Healthcare Voice Intake Agent</title>
+    <title>Healthcare Voice Intake Agent</title>
 
     <style>
-        * {
+        body {
             margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #0f172a;
+            color: white;
+            display: flex;
+            justify-content: center;
         }
 
-    body{
-        margin:0;
-        font-family: Arial, Helvetica, sans-serif;
-        background:#0f172a;
-        color:white;
-        display:flex;
-        justify-content:center;
-    }
+        .container {
+            width: 700px;
+            margin-top: 40px;
+        }
 
-    .container{
-        width:700px;
-        margin-top:40px;
-    }
+        .header {
+            text-align: center;
+        }
 
-    .header{
-        text-align:center;
-    }
+        .status {
+            margin-top: 10px;
+            font-size: 14px;
+        }
 
-    .status{
-        margin-top:10px;
-        font-size:14px;
-    }
+        .connected {
+            color: #22c55e;
+        }
 
-    .connected{ color:#22c55e }
-    .disconnected{ color:#ef4444 }
+        .disconnected {
+            color: #ef4444;
+        }
 
-    .chat{
-        margin-top:30px;
-        height:350px;
-        overflow-y:auto;
-        background:#1e293b;
-        border-radius:10px;
-        padding:20px;
-    }
+        .chat {
+            margin-top: 30px;
+            height: 350px;
+            overflow-y: auto;
+            background: #1e293b;
+            border-radius: 10px;
+            padding: 20px;
+        }
 
-    .message{
-        margin-bottom:15px;
-    }
+        .message {
+            margin-bottom: 15px;
+        }
 
-    .user{
-        text-align:right;
-    }
+        .user {
+            text-align: right;
+        }
 
-    .user span{
-        background:#2563eb;
-        padding:10px 14px;
-        border-radius:12px;
-    }
+        .user span {
+            background: #2563eb;
+            padding: 10px 14px;
+            border-radius: 12px;
+        }
 
-    .ai span{
-        background:#334155;
-        padding:10px 14px;
-        border-radius:12px;
-    }
+        .ai span {
+            background: #334155;
+            padding: 10px 14px;
+            border-radius: 12px;
+        }
 
-    .controls{
-        margin-top:30px;
-        text-align:center;
-    }
+        .controls {
+            margin-top: 30px;
+            text-align: center;
+        }
 
-    button{
-        width:120px;
-        height:120px;
-        border-radius:60px;
-        border:none;
-        background:#6366f1;
-        color:white;
-        font-size:16px;
-        cursor:pointer;
-    }
+        button {
+            width: 120px;
+            height: 120px;
+            border-radius: 60px;
+            border: none;
+            background: #6366f1;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
 
-    button.listening{
-        background:#ef4444;
-    }
+        button.listening {
+            background: #ef4444;
+            animation: pulse 1s infinite;
+        }
 
-    .loader{
-        margin-top:10px;
-        font-size:14px;
-        color:#94a3b8;
-    }
+        @keyframes pulse {
+            0% {
+                transform: scale(1)
+            }
 
+            50% {
+                transform: scale(1.1)
+            }
+
+            100% {
+                transform: scale(1)
+            }
+        }
+
+        .loader {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #94a3b8;
+        }
     </style>
 </head>
 
-    <body>
+<body>
 
-
-        <div class="container">
+    <div class="container">
 
         <div class="header">
-        <h1>Healthcare Voice Intake Agent</h1>
-        <div id="status" class="status disconnected">Disconnected</div>
+            <h1>Healthcare Voice Intake Agent</h1>
+            <div id="status" class="status disconnected">Disconnected</div>
         </div>
-
 
         <div id="chat" class="chat"></div>
 
         <div class="controls">
-        <button id="recordBtn">🎤 Speak</button>
-        <div id="loader" class="loader"></div>
+            <button id="recordBtn">🎤 Speak</button>
+            <div id="loader" class="loader"></div>
         </div>
 
-        </div>
+    </div>
 
-
-        <script>
+    <script>
 
         let socket
-        let stream
-        let processor
-        let source
-        let audioContext
-        let currentAudio
+        let stream = null
+        let processor = null
+        let source = null
+        let audioContext = null
+        let currentAudio = null
         let isRecording = false
-        const recordBtn = document.getElementById("recordBtn")
+        let currentAIMessage = null
         const chat = document.getElementById("chat")
         const status = document.getElementById("status")
         const loader = document.getElementById("loader")
 
-        function addMessage(text,type){
+        function addMessage(text, type) {
 
-        const div=document.createElement("div")
-        div.className="message "+type
+            const div = document.createElement("div")
+            div.className = "message " + type
 
-        const span=document.createElement("span")
-        span.innerText=text
+            const span = document.createElement("span")
+            span.innerText = text
 
-        div.appendChild(span)
+            div.appendChild(span)
+            chat.appendChild(div)
 
-        chat.appendChild(div)
-
-        chat.scrollTop=chat.scrollHeight
-
-        }
-
-        function connectSocket(){
-
-        socket=new WebSocket("ws://127.0.0.1:8000/ws/chatting")
-
-        socket.binaryType="arraybuffer"
-
-        socket.onopen=()=>{
-        status.innerText="Connected"
-        status.className="status connected"
-        }
-
-        socket.onclose=()=>{
-        status.innerText="Disconnected"
-        status.className="status disconnected"
-
-        setTimeout(connectSocket,2000)
-        }
-
-        socket.onerror=(e)=>{
-        console.error(e)
-        }
-
-        socket.onmessage=(event)=>{
-
-        if(event.data instanceof ArrayBuffer){
-
-        const blob=new Blob([event.data],{type:'audio/wav'})
-
-        if(currentAudio){
-        currentAudio.pause()
-        }
-
-        currentAudio=new Audio(URL.createObjectURL(blob))
-
-        currentAudio.play()
-
-        return
-        }
-
-        const data=JSON.parse(event.data)
-
-        if(data.type==="user_question"){
-
-        addMessage(data.content,"user")
-
-        loader.innerText="AI thinking..."
+            chat.scrollTop = chat.scrollHeight
 
         }
 
-        if(data.type==="text"){
+        function connectSocket() {
 
-        loader.innerText=""
+            // You need to provide a valid JWT token here
+            const token = "eyJhbGciOiJFZERTQSIsImtpZCI6InZ3Q0tiRjJvZXVDRWdUUHY5RTRsSkpGcHdDQmpvanBIIn0.eyJpYXQiOjE3NzU1NjczMTksIm5hbWUiOiJEZW1vIFVzZXIiLCJlbWFpbCI6ImRlbW91c2VyLmduckBnbWFpbC5jb20iLCJlbWFpbFZlcmlmaWVkIjpmYWxzZSwiaW1hZ2UiOm51bGwsImNyZWF0ZWRBdCI6IjIwMjYtMDQtMDJUMTI6NDc6MTcuNjQ4WiIsInVwZGF0ZWRBdCI6IjIwMjYtMDQtMDJUMTI6NDc6MTcuNjQ4WiIsInVzZXJuYW1lIjpudWxsLCJkaXNwbGF5VXNlcm5hbWUiOm51bGwsInR3b0ZhY3RvckVuYWJsZWQiOmZhbHNlLCJyb2xlIjoiZ3Vlc3QiLCJiYW5uZWQiOmZhbHNlLCJiYW5SZWFzb24iOm51bGwsImJhbkV4cGlyZXMiOm51bGwsImlkIjoicVZuYTJnTU01cGRVaVpvUGNCcGR6Q0VKRm1PeU5RU1UiLCJhY3RpdmVPcmdhbml6YXRpb25JZCI6IjQ4NzIzYjE3LTQwNmQtNDZlOS1hZmI5LTZlMTdkYzc4OGZkYSIsImFjdGl2ZVRlYW1JZCI6bnVsbCwiYXBwcyI6W10sInBlcm1pc3Npb25zIjpbImFnZW50OmNoYXQiXSwib3JnYW5pemF0aW9ucyI6W3siaWQiOiI0ODcyM2IxNy00MDZkLTQ2ZTktYWZiOS02ZTE3ZGM3ODhmZGEiLCJuYW1lIjoiZHJnb2RseSIsInNsdWciOiJkcmdvZGx5IiwibG9nbyI6bnVsbH1dLCJzdWIiOiJxVm5hMmdNTTVwZFVpWm9QY0JwZHpDRUpGbU95TlFTVSIsImV4cCI6MTc3NTU2ODIxOSwiaXNzIjoiaHR0cHM6Ly9pYW0uZHJnb2RseS5jb20iLCJhdWQiOiJodHRwczovL2lhbS5kcmdvZGx5LmNvbSJ9.gfbshkHh16d6Sy0R2Uvt6Q-zV7rP6m5R-oqmQXlIm18P6B7FfEfGRB5_D664T2ipqN2Yx2xOrGv45al_TAQxBA"
+            socket = new WebSocket(`wss://agents.drgodly.com/ws/chatting?token=${token}`)
+            socket.binaryType = "arraybuffer"
 
-        addMessage(data.content,"ai")
+            socket.onopen = () => {
+                status.innerText = "Connected"
+                status.className = "status connected"
+            }
 
-        }
+            socket.onclose = () => {
 
-        }
+                status.innerText = "Disconnected"
+                status.className = "status disconnected"
+
+                setTimeout(connectSocket, 2000)
+
+            }
+
+            socket.onerror = (e) => {
+                console.error("WebSocket error", e)
+            }
+
+            socket.onmessage = (event) => {
+
+                // AUDIO RESPONSE
+                if (event.data instanceof ArrayBuffer) {
+
+                    const blob = new Blob([event.data], { type: 'audio/wav' })
+
+                    if (currentAudio) {
+                        currentAudio.pause()
+                    }
+
+                    currentAudio = new Audio(URL.createObjectURL(blob))
+                    currentAudio.play().catch(err => {
+                        console.log("Audio play error", err)
+                    })
+
+                    return
+                }
+
+                let data
+
+                try {
+                    data = JSON.parse(event.data)
+                } catch (err) {
+                    console.error("Invalid JSON", event.data)
+                    return
+                }
+
+                // USER TRANSCRIPTION
+                if (data.type === "user_question") {
+
+                    addMessage(data.content, "user")
+
+                    loader.innerText = "AI thinking..."
+
+                    currentAIMessage = null
+                }
+
+                // STREAMING TEXT
+                if (data.type === "text") {
+
+                    loader.innerText = ""
+
+                    if (!currentAIMessage) {
+
+                        currentAIMessage = document.createElement("div")
+                        currentAIMessage.className = "message ai"
+
+                        const span = document.createElement("span")
+                        span.id = "ai-stream"
+
+                        currentAIMessage.appendChild(span)
+                        chat.appendChild(currentAIMessage)
+
+                    }
+
+                    const span = document.getElementById("ai-stream")
+                    span.innerText += data.content
+
+                    chat.scrollTop = chat.scrollHeight
+                }
+
+                // APPROVAL REQUEST
+                if (data.type === "approval_request") {
+
+                    currentApprovalId = data.approval_id
+
+                    approvalText.innerText =
+                        (data.description || "Tool wants approval") +
+                        "\nTool: " + data.tool_name
+
+                    approvalPopup.style.display = "flex"
+
+                }
+
+                // ERROR
+                if (data.type === "error") {
+
+                    loader.innerText = ""
+                    addMessage("Error: " + data.message, "ai")
+
+                }
+
+            }
 
         }
 
@@ -341,188 +272,203 @@
 
         recordBtn.onmousedown = async () => {
 
-        if(isRecording) return
+            if (isRecording) return
 
-        try{
+            try {
 
-        stream = await navigator.mediaDevices.getUserMedia({audio:true})
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true })
 
-        audioContext = new AudioContext({sampleRate:16000})
+                audioContext = new AudioContext({ sampleRate: 16000 })
 
-        source = audioContext.createMediaStreamSource(stream)
+                source = audioContext.createMediaStreamSource(stream)
 
-        processor = audioContext.createScriptProcessor(2048,1,1)
+                processor = audioContext.createScriptProcessor(2048, 1, 1)
 
-        source.connect(processor)
-        processor.connect(audioContext.destination)
+                source.connect(processor)
+                processor.connect(audioContext.destination)
 
-        isRecording = true
+                isRecording = true
 
-        processor.onaudioprocess = (event)=>{
+                processor.onaudioprocess = (event) => {
 
-        if(!isRecording) return
+                    if (!isRecording) return
 
-        const input = event.inputBuffer.getChannelData(0)
+                    const input = event.inputBuffer.getChannelData(0)
+                    const pcm16 = new Int16Array(input.length)
 
-        const pcm16 = new Int16Array(input.length)
+                    for (let i = 0; i < input.length; i++) {
+                        pcm16[i] = Math.max(-1, Math.min(1, input[i])) * 32767
+                    }
 
-        for(let i=0;i<input.length;i++){
-        pcm16[i] = Math.max(-1,Math.min(1,input[i])) * 32767
-        }
+                    if (socket.readyState === WebSocket.OPEN) {
+                        socket.send(pcm16.buffer)
+                    }
 
-        if(socket.readyState === WebSocket.OPEN){
-        socket.send(pcm16.buffer)
-        }
+                }
 
-        }
+                recordBtn.classList.add("listening")
+                recordBtn.innerText = "Listening..."
 
-        recordBtn.classList.add("listening")
-        recordBtn.innerText="Listening"
+            } catch (err) {
 
-        }catch(err){
+                console.error(err)
+                status.innerText = "Mic permission denied"
 
-        console.error(err)
-        status.innerText="Mic permission denied"
-
-        }
-
-        }
-
-        recordBtn.onmouseup=()=>{
-
-        if(processor) processor.disconnect()
-        if(source) source.disconnect()
-
-        if(stream){
-        stream.getTracks().forEach(t=>t.stop())
-        }
-
-        recordBtn.classList.remove("listening")
-        recordBtn.innerText="Speak"
+            }
 
         }
 
-        </script>
+        recordBtn.onmouseup = () => {
 
-    </body>
+            isRecording = false
+
+            if (processor) {
+                processor.disconnect()
+                processor = null
+            }
+
+            if (source) {
+                source.disconnect()
+                source = null
+            }
+
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop())
+                stream = null
+            }
+
+            if (audioContext) {
+                audioContext.close()
+                audioContext = null
+            }
+
+            recordBtn.classList.remove("listening")
+            recordBtn.innerText = "🎤 Speak"
+
+        }
+
+    </script>
+
+</body>
 
 </html> -->
 
 <!DOCTYPE html>
 <html>
-
 <head>
-<title>Healthcare Voice Intake Agent</title>
+    <title>Healthcare Voice Intake Agent</title>
 
-<style>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #0f172a;
+            color: white;
+            display: flex;
+            justify-content: center;
+        }
 
-body{
-margin:0;
-font-family:Arial, Helvetica, sans-serif;
-background:#0f172a;
-color:white;
-display:flex;
-justify-content:center;
-}
+        .container {
+            width: 700px;
+            margin-top: 40px;
+        }
 
-.container{
-width:700px;
-margin-top:40px;
-}
+        .header {
+            text-align: center;
+        }
 
-.header{
-text-align:center;
-}
+        .status {
+            margin-top: 10px;
+            font-size: 14px;
+        }
 
-.status{
-margin-top:10px;
-font-size:14px;
-}
+        .connected {
+            color: #22c55e;
+        }
 
-.connected{color:#22c55e}
-.disconnected{color:#ef4444}
+        .disconnected {
+            color: #ef4444;
+        }
 
-.chat{
-margin-top:30px;
-height:350px;
-overflow-y:auto;
-background:#1e293b;
-border-radius:10px;
-padding:20px;
-}
+        .chat {
+            margin-top: 30px;
+            height: 350px;
+            overflow-y: auto;
+            background: #1e293b;
+            border-radius: 10px;
+            padding: 20px;
+        }
 
-.message{
-margin-bottom:15px;
-}
+        .message {
+            margin-bottom: 15px;
+        }
 
-.user{
-text-align:right;
-}
+        .user {
+            text-align: right;
+        }
 
-.user span{
-background:#2563eb;
-padding:10px 14px;
-border-radius:12px;
-}
+        .user span {
+            background: #2563eb;
+            padding: 10px 14px;
+            border-radius: 12px;
+        }
 
-.ai span{
-background:#334155;
-padding:10px 14px;
-border-radius:12px;
-}
+        .ai span {
+            background: #334155;
+            padding: 10px 14px;
+            border-radius: 12px;
+        }
 
-.controls{
-margin-top:30px;
-text-align:center;
-}
+        .controls {
+            margin-top: 30px;
+            text-align: center;
+        }
 
-button{
-width:120px;
-height:120px;
-border-radius:60px;
-border:none;
-background:#6366f1;
-color:white;
-font-size:16px;
-cursor:pointer;
-transition:0.2s;
-}
+        button {
+            width: 120px;
+            height: 120px;
+            border-radius: 60px;
+            border: none;
+            background: #6366f1;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
 
-button.listening{
-background:#ef4444;
-animation:pulse 1s infinite;
-}
+        button.listening {
+            background: #ef4444;
+            animation: pulse 1s infinite;
+        }
 
-@keyframes pulse{
-0%{transform:scale(1)}
-50%{transform:scale(1.1)}
-100%{transform:scale(1)}
-}
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
 
-.loader{
-margin-top:10px;
-font-size:14px;
-color:#94a3b8;
-}
-
-</style>
+        .loader {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+    </style>
 </head>
 
 <body>
 
 <div class="container">
 
-<div class="header">
-<h1>Healthcare Voice Intake Agent</h1>
-<div id="status" class="status disconnected">Disconnected</div>
-</div>
+    <div class="header">
+        <h1>Healthcare Voice Intake Agent</h1>
+        <div id="status" class="status disconnected">Disconnected</div>
+    </div>
 
-<div id="chat" class="chat"></div>
+    <div id="chat" class="chat"></div>
 
-<div class="controls">
-<button id="recordBtn">🎤 Speak</button>
-<div id="loader" class="loader"></div>
-</div>
+    <div class="controls">
+        <button id="recordBtn">🎤 Speak</button>
+        <div id="loader" class="loader"></div>
+    </div>
 
 </div>
 
@@ -537,206 +483,207 @@ let currentAudio = null
 let isRecording = false
 let currentAIMessage = null
 
-const recordBtn = document.getElementById("recordBtn")
 const chat = document.getElementById("chat")
 const status = document.getElementById("status")
 const loader = document.getElementById("loader")
+const recordBtn = document.getElementById("recordBtn")
 
 function addMessage(text, type) {
 
+    const div = document.createElement("div")
+    div.className = "message " + type
 
-const div = document.createElement("div")
-div.className = "message " + type
+    const span = document.createElement("span")
+    span.innerText = text
 
-const span = document.createElement("span")
-span.innerText = text
+    div.appendChild(span)
+    chat.appendChild(div)
 
-div.appendChild(span)
-chat.appendChild(div)
-
-chat.scrollTop = chat.scrollHeight
-
-
+    chat.scrollTop = chat.scrollHeight
 }
 
-function connectSocket(){
+function connectSocket() {
 
+    const token = "eyJhbGciOiJFZERTQSIsImtpZCI6InZ3Q0tiRjJvZXVDRWdUUHY5RTRsSkpGcHdDQmpvanBIIn0.eyJpYXQiOjE3NzU3MDgzNzYsIm5hbWUiOiJEZW1vIFVzZXIiLCJlbWFpbCI6ImRlbW91c2VyLmduckBnbWFpbC5jb20iLCJlbWFpbFZlcmlmaWVkIjpmYWxzZSwiaW1hZ2UiOm51bGwsImNyZWF0ZWRBdCI6IjIwMjYtMDQtMDJUMTI6NDc6MTcuNjQ4WiIsInVwZGF0ZWRBdCI6IjIwMjYtMDQtMDJUMTI6NDc6MTcuNjQ4WiIsInVzZXJuYW1lIjpudWxsLCJkaXNwbGF5VXNlcm5hbWUiOm51bGwsInR3b0ZhY3RvckVuYWJsZWQiOmZhbHNlLCJyb2xlIjoiZ3Vlc3QiLCJiYW5uZWQiOmZhbHNlLCJiYW5SZWFzb24iOm51bGwsImJhbkV4cGlyZXMiOm51bGwsImlkIjoicVZuYTJnTU01cGRVaVpvUGNCcGR6Q0VKRm1PeU5RU1UiLCJhY3RpdmVPcmdhbml6YXRpb25JZCI6IjQ4NzIzYjE3LTQwNmQtNDZlOS1hZmI5LTZlMTdkYzc4OGZkYSIsImFjdGl2ZVRlYW1JZCI6bnVsbCwiYXBwcyI6W10sInBlcm1pc3Npb25zIjpbImFnZW50OmNoYXQiXSwib3JnYW5pemF0aW9ucyI6W3siaWQiOiI0ODcyM2IxNy00MDZkLTQ2ZTktYWZiOS02ZTE3ZGM3ODhmZGEiLCJuYW1lIjoiZHJnb2RseSIsInNsdWciOiJkcmdvZGx5IiwibG9nbyI6bnVsbH1dLCJzdWIiOiJxVm5hMmdNTTVwZFVpWm9QY0JwZHpDRUpGbU95TlFTVSIsImV4cCI6MTc3NTcwOTI3NiwiaXNzIjoiaHR0cHM6Ly9pYW0uZHJnb2RseS5jb20iLCJhdWQiOiJodHRwczovL2lhbS5kcmdvZGx5LmNvbSJ9.s5ycZrLxFvXOJ8wJhSdjiOCXLd7K_RHOAjQwNqu4f16H9-ofrMl3ggVHqOlaepBFupdqzubhGBVrSxChfXo7CA"
+    socket = new WebSocket(`ws://127.0.0.1:8000/ws/chatting?token=${token}`)
+    socket.binaryType = "arraybuffer"
 
-socket = new WebSocket("ws://127.0.0.1:8000/ws/chatting")
-socket.binaryType = "arraybuffer"
+    socket.onopen = () => {
+        status.innerText = "Connected"
+        status.className = "status connected"
+    }
 
-socket.onopen = () => {
-    status.innerText = "Connected"
-    status.className = "status connected"
-}
+    socket.onclose = () => {
+        status.innerText = "Disconnected"
+        status.className = "status disconnected"
 
-socket.onclose = () => {
-    status.innerText = "Disconnected"
-    status.className = "status disconnected"
+        setTimeout(connectSocket, 2000)
+    }
 
-    setTimeout(connectSocket, 2000)
-}
+    socket.onerror = (e) => {
+        console.error("WebSocket error:", e)
+    }
 
-socket.onerror = (e) => {
-    console.error("WebSocket error", e)
-}
+    socket.onmessage = (event) => {
 
-socket.onmessage = (event) => {
+        // AUDIO RESPONSE
+        if (event.data instanceof ArrayBuffer) {
 
-    // 🔊 AUDIO RESPONSE
-    if(event.data instanceof ArrayBuffer){
+            const blob = new Blob([event.data], { type: "audio/wav" })
 
-        const blob = new Blob([event.data], {type:'audio/wav'})
+            if (currentAudio) {
+                currentAudio.pause()
+                currentAudio = null
+            }
 
-        if(currentAudio){
-            currentAudio.pause()
+            currentAudio = new Audio(URL.createObjectURL(blob))
+            currentAudio.play().catch(err => {
+                console.log("Audio play error", err)
+            })
+
+            return
         }
 
-        currentAudio = new Audio(URL.createObjectURL(blob))
-        currentAudio.play().catch(err=>{
-            console.log("Audio play error",err)
-        })
+        let data
 
-        return
-    }
-
-    let data
-
-    try{
-        data = JSON.parse(event.data)
-    }catch(err){
-        console.error("Invalid JSON",event.data)
-        return
-    }
-
-    // USER SPEECH TRANSCRIPTION
-    if(data.type === "user_question"){
-
-        addMessage(data.content, "user")
-
-        loader.innerText = "AI thinking..."
-
-        currentAIMessage = null
-    }
-
-    // STREAMING AI RESPONSE
-    if(data.type === "text"){
-
-        loader.innerText = ""
-
-        if(!currentAIMessage){
-
-            currentAIMessage = document.createElement("div")
-            currentAIMessage.className = "message ai"
-
-            const span = document.createElement("span")
-            span.id = "ai-stream"
-
-            currentAIMessage.appendChild(span)
-            chat.appendChild(currentAIMessage)
+        try {
+            data = JSON.parse(event.data)
+        } catch (err) {
+            console.error("Invalid JSON", event.data)
+            return
         }
 
-        const span = document.getElementById("ai-stream")
-        span.innerText += data.content
+        // USER MESSAGE
+        if (data.type === "user_question") {
 
-        chat.scrollTop = chat.scrollHeight
+            addMessage(data.content, "user")
+
+            loader.innerText = "AI thinking..."
+            currentAIMessage = null
+        }
+
+        // STREAMING AI TEXT
+        if (data.type === "text") {
+
+            loader.innerText = ""
+
+            if (!currentAIMessage) {
+
+                currentAIMessage = document.createElement("div")
+                currentAIMessage.className = "message ai"
+
+                const span = document.createElement("span")
+                span.id = "ai-stream"
+
+                currentAIMessage.appendChild(span)
+                chat.appendChild(currentAIMessage)
+            }
+
+            const span = document.getElementById("ai-stream")
+            span.innerText += data.content
+
+            chat.scrollTop = chat.scrollHeight
+        }
+
+        // ERROR MESSAGE
+        if (data.type === "error") {
+
+            loader.innerText = ""
+            addMessage("Error: " + data.message, "ai")
+        }
     }
-
-    // ERROR MESSAGE
-    if(data.type === "error"){
-
-        loader.innerText = ""
-        addMessage("Error: " + data.message, "ai")
-    }
-}
-
-
 }
 
 connectSocket()
 
 recordBtn.onmousedown = async () => {
 
+    if (isRecording) return
 
-if(isRecording) return
+    try {
 
-try{
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true })
 
-    stream = await navigator.mediaDevices.getUserMedia({audio:true})
+        audioContext = new AudioContext({ sampleRate: 16000 })
 
-    audioContext = new AudioContext({sampleRate:16000})
+        source = audioContext.createMediaStreamSource(stream)
 
-    source = audioContext.createMediaStreamSource(stream)
+        processor = audioContext.createScriptProcessor(1024, 1, 1)
 
-    processor = audioContext.createScriptProcessor(2048,1,1)
+        source.connect(processor)
+        processor.connect(audioContext.destination)
 
-    source.connect(processor)
-    processor.connect(audioContext.destination)
+        isRecording = true
 
-    isRecording = true
+        processor.onaudioprocess = (event) => {
 
-    processor.onaudioprocess = (event)=>{
+            if (!isRecording) return
 
-        if(!isRecording) return
+            const input = event.inputBuffer.getChannelData(0)
 
-        const input = event.inputBuffer.getChannelData(0)
-        const pcm16 = new Int16Array(input.length)
+            // Volume detection
+            let volume = 0
+            for (let i = 0; i < input.length; i++) {
+                volume += input[i] * input[i]
+            }
 
-        for(let i=0;i<input.length;i++){
-            pcm16[i] = Math.max(-1,Math.min(1,input[i])) * 32767
+            volume = Math.sqrt(volume / input.length)
+
+            // // Ignore silence
+            // if (volume < 0.015) return
+            console.log("volume:", volume)
+
+            const pcm16 = new Int16Array(input.length)
+
+            for (let i = 0; i < input.length; i++) {
+                pcm16[i] = Math.max(-1, Math.min(1, input[i])) * 32767
+            }
+
+            if (socket.readyState === WebSocket.OPEN) {
+                socket.send(pcm16.buffer)
+            }
         }
 
-        if(socket.readyState === WebSocket.OPEN){
-            socket.send(pcm16.buffer)
-        }
+        recordBtn.classList.add("listening")
+        recordBtn.innerText = "Listening..."
+
+    } catch (err) {
+
+        console.error(err)
+        status.innerText = "Mic permission denied"
     }
-
-    recordBtn.classList.add("listening")
-    recordBtn.innerText="Listening..."
-
-}catch(err){
-
-    console.error(err)
-    status.innerText="Mic permission denied"
-}
-
-
 }
 
 recordBtn.onmouseup = () => {
 
+    isRecording = false
 
-isRecording = false
+    if (processor) {
+        processor.disconnect()
+        processor = null
+    }
 
-if(processor){
-    processor.disconnect()
-    processor = null
+    if (source) {
+        source.disconnect()
+        source = null
+    }
+
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+        stream = null
+    }
+
+    if (audioContext) {
+        audioContext.close()
+        audioContext = null
+    }
+
+    recordBtn.classList.remove("listening")
+    recordBtn.innerText = "🎤 Speak"
 }
-
-if(source){
-    source.disconnect()
-    source = null
-}
-
-if(stream){
-    stream.getTracks().forEach(track => track.stop())
-    stream = null
-}
-
-if(audioContext){
-    audioContext.close()
-    audioContext = null
-}
-
-recordBtn.classList.remove("listening")
-recordBtn.innerText="🎤 Speak"
-
-
-}
-
 
 </script>
 
 </body>
-
 </html>
+

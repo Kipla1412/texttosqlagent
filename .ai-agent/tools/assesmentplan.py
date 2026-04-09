@@ -40,7 +40,7 @@ class GenerateAssessmentReportTool(Tool):
             params=invocation.params,
             description=f"Generate clinical Assessment & Plan PDF for patient '{patient_id}'.",
             affected_paths=[output_file],
-            is_dangerous=True,
+            is_dangerous=False,
         )
 
     async def execute(self, invocation: ToolInvocation) -> ToolResult:

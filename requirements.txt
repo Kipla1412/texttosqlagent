@@ -9,7 +9,6 @@ openai
 ddgs
 tiktoken
 fastmcp
-opensearch-py
 fastapi
 reportlab
 websockets
@@ -17,3 +16,4 @@ setuptools
 pydantic
 requests
 soundfile
+httpx

@@ -35,7 +35,7 @@ class VoiceActivityDetector:
             
             # Use a more reasonable threshold
             # Normal speech has energy around 0.01-0.1, silence is < 0.001
-            return energy > 0.01
+            return energy > self.energy_threshold
             
         except Exception:
             return False

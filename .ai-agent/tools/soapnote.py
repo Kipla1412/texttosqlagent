@@ -48,7 +48,7 @@ class GenerateSOAPReportTool(Tool):
                 params=invocation.params,
                 description=f"Generate clinical SOAP report PDF for patient '{patient_id}'.",
                 affected_paths=[output_file],
-                is_dangerous=True,
+                is_dangerous=False,
             )
 
         except Exception:

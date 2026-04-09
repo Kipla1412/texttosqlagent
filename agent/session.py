@@ -31,7 +31,9 @@ class Session:
             self.tool_registry,
         )
         self.chat_compactor = ChatCompactor(self.client)
+      
         self.pending_approvals = {}
+        self.event_queue: asyncio.Queue = asyncio.Queue()
         self.approval_manager = ApprovalManager(
             self.config.approval,
             self.config.cwd,
@@ -57,61 +59,47 @@ class Session:
         print("DEBUG: _request_user_confirmation START")
         approval_id = str(uuid.uuid4())
 
-        future = asyncio.get_event_loop().create_future()
+        future = asyncio.get_running_loop().create_future()
 
         self.pending_approvals[approval_id] = future
         print("WAITING APPROVAL:", approval_id)
 
-        # # send approval event to frontend
-        # self.latest_approval_event = {
-        #     "type": "approval_required",
-        #     "data": {
-        #         "approval_id": approval_id,
-        #         "tool": confirmation.tool_name,
-        #         "description": confirmation.description,
-        #         "params": confirmation.params
-        #     }
-        # }
+        # send approval event to frontend
+        await self.event_queue.put({
+            "type": "approval_request",
+            "data": {
+                "approval_id": approval_id,
+                "tool_name": confirmation.tool_name,
+                "description": confirmation.description,
+                "params": confirmation.params
+            }
+        })
 
-        approved = await future
+        try:
+            # Code stops here until the /approve route calls future.set_result()
+            approved = await future
+            print(f"DEBUG: Approval result received for {approval_id}: {approved}")
+            return approved
+        finally:
+            # Ensure we ALWAYS clean up the dictionary, even if there's an error
+            if approval_id in self.pending_approvals:
+                del self.pending_approvals[approval_id]
 
-        return approved
-
-    # async def _request_user_confirmation(self, confirmation) -> bool:
-    #     """Ask user for tool approval confirmation"""
-    #     print(f"\n TOOL APPROVAL REQUIRED:")
-    #     print(f"Tool: {confirmation.tool_name}")
-    #     print(f"Description: {confirmation.description}")
-    #     print(f"Parameters: {confirmation.params}")
+    async def handle_approval(self, approval_id: str, approved: bool) -> bool:
+        """
+        This is the 'Resolver'. It is called by the WebSocket or API 
+        when the user actually clicks 'Approve' or 'Deny'.
+        """
+        if approval_id in self.pending_approvals:
+            future = self.pending_approvals[approval_id]
+            if not future.done():
+                # This 'wakes up' the _request_user_confirmation method above
+                future.set_result(approved)
+                return True
         
-    #     if confirmation.affected_paths:
-    #         print(f"Affected files: {confirmation.affected_paths}")
-        
-    #     if confirmation.is_dangerous:
-    #         print("This operation is marked as DANGEROUS!")
-        
-    #     loop = asyncio.get_running_loop()
+        print(f"DEBUG: Could not find pending approval for ID: {approval_id}")
+        return False
 
-    #     while True:
-    #         response = await loop.run_in_executor(
-    #             None,
-    #             lambda: input("\nApprove this operation? (y/n): ")
-    #         )
-
-    #         response = response.lower().strip()
-
-    #         if response in ['y', 'yes']:
-    #             print("Operation approved by user")
-    #             return True
-
-    #         elif response in ['n', 'no']:
-    #             print("Operation rejected by user")
-    #             return False
-
-    #         else:
-    #             print("Please enter 'y' or 'n'")
-
-    
     @property
     def turn_count(self) -> int:
         return getattr(self, '_turn_count', 0)
@@ -131,6 +119,8 @@ class Session:
         
         # Setup MLflow run for this session (optional)
         try:
+            if mlflow.active_run():
+                mlflow.end_run()
             self.mlflow_run = self.mlflow_tracker.start_run("initializing")
         except Exception as e:
             print(f"Warning: MLflow tracking disabled: {e}")

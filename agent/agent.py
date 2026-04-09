@@ -29,7 +29,9 @@ class Agent:
         self.session.start_mlflow_run(message)
         
         await self.session.hook_system.trigger_before_agent(message)
+
         yield AgentEvent.agent_start(message)
+        
         self.session.context_manager.add_user_message(message)
 
         final_response: str | None = None
@@ -55,6 +57,22 @@ class Agent:
 
         for turn_num in range(max_turns):
             self.session.increment_turn()
+            
+            while not self.session.event_queue.empty():
+
+                event = await self.session.event_queue.get()
+
+                data = event["data"]
+                
+                print("DEBUG: agent emitting approval event", data)
+
+                yield AgentEvent.approval_request(
+                    approval_id=data["approval_id"],
+                    tool_name=data["tool_name"],
+                    description=data["description"],
+                    params=data.get("params")
+                )
+            
             response_text = ""
 
             # check for context overflow
@@ -159,13 +177,43 @@ class Agent:
                         "tool.args": json.dumps(tool_call.arguments)[:500],
                     },
                 ):
-                    result = await self.session.tool_registry.invoke(
-                        tool_call.name,
-                        tool_call.arguments,
-                        self.config.cwd,
-                        self.session.hook_system,
-                        self.session.approval_manager,
+                    # result = await self.session.tool_registry.invoke(
+                    #     tool_call.name,
+                    #     tool_call.arguments,
+                    #     self.config.cwd,
+                    #     self.session.hook_system,
+                    #     self.session.approval_manager,
+                    # )
+
+                    # Wrap the tool invocation in a task so it runs in the background
+                    invocation_task = asyncio.create_task(
+                        self.session.tool_registry.invoke(
+                            tool_call.name,
+                            tool_call.arguments,
+                            self.config.cwd,
+                            self.session.hook_system,
+                            self.session.approval_manager,
+                        )
                     )
+
+                    # While the tool is running (it might be paused waiting for approval!)
+                    # We "drain" the event queue and yield requests to the frontend
+                    result = None
+                    while not invocation_task.done():
+                        try:
+                            # Check queue every 0.1s. If an approval is added, yield it immediately.
+                            event_data = await asyncio.wait_for(self.session.event_queue.get(), timeout=0.1)
+                            data = event_data["data"]
+                            yield AgentEvent.approval_request(
+                                approval_id=data["approval_id"],
+                                tool_name=data["tool_name"],
+                                description=data["description"],
+                                params=data.get("params")
+                            )
+                        except asyncio.TimeoutError:
+                            continue 
+                    
+                    result = await invocation_task
                     
 
                     yield AgentEvent.tool_call_complete(
@@ -200,48 +248,50 @@ class Agent:
             self.session.context_manager.prune_tool_outputs()
         yield AgentEvent.agent_error(f"Maximum turns ({max_turns}) reached")
 
-    async def run_audio(self, audio, rate):
+    async def run_audio(self, audio, rate, session: Session | None = None):
         import io
         import soundfile as sf
         import numpy as np
         
+        active_session = session or self.session
+
         if not hasattr(self, "vad"):
             
             self.vad = VoiceActivityDetector()
 
         # Add new audio chunk to buffer
-        self.session.audio_buffer.append(audio)
+        active_session.audio_buffer.append(audio)
 
         # Speech detection + barge-in handling
         if self.vad.is_speech(audio):
 
             # User interrupts while agent speaking
-            if self.session.agent_speaking:
+            if active_session.agent_speaking:
                 print("DEBUG: Barge-in detected")
 
                 # stop current TTS
-                self.session.agent_speaking = False
+                active_session.agent_speaking = False
 
                 # reset audio buffer
-                self.session.reset_audio_buffer()
+                active_session.reset_audio_buffer()
 
-            self.session.silence_chunks = 0
+            active_session.silence_chunks = 0
 
         else:
-            self.session.silence_chunks += 1
+            active_session.silence_chunks += 1
         
         # Process if we have speech followed by silence (user finished speaking)
-        if len(self.session.audio_buffer) > 10 and self.session.silence_chunks >= 3:  # More responsive
+        if len(active_session.audio_buffer) > 10 and active_session.silence_chunks >= 6:  # More responsive
             print("DEBUG: User finished speaking, processing...")
             
             # Combine all buffered audio
-            total_audio = b''.join(self.session.audio_buffer)
+            total_audio = b''.join(active_session.audio_buffer)
             
             # Reset buffers
-            self.session.reset_audio_buffer()
+            active_session.reset_audio_buffer()
             
             # Only process if we have enough audio (at least 0.5 seconds)
-            min_bytes = int(16000 * 0.5 * 2)
+            min_bytes = int(16000 * 1.0 * 2)
             if len(total_audio) < min_bytes:
                 print("DEBUG: Too short, ignoring")
                 return
@@ -310,13 +360,13 @@ class Agent:
 
                     )
 
-                    self.session.agent_speaking = True
+                    active_session.agent_speaking = True
 
                     audio_bytes = tts.processor.array_to_wav_bytes(audio_out, sr)
                     
                     yield AgentEvent.voice_output(audio_bytes, sr)
 
-                    self.session.agent_speaking = False
+                    active_session.agent_speaking = False
 
                 except Exception as e:
                     yield AgentEvent.agent_error(f"TTS Error: {str(e)}")

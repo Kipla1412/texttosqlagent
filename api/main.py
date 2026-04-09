@@ -1,18 +1,19 @@
 """
 FastAPI application module
 """
-
-from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 import logging
- 
+from fastapi.responses import JSONResponse
+
 from agent.agent import Agent
 from config.config import Config
 from api.routers.agent import router as agent_router
 from api.wsrouters.webs2s import router as websocket_router
 from fastapi.middleware.cors import CORSMiddleware
+
+from api.auth import decode_token
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,11 +42,12 @@ async def lifespan(app: FastAPI):
                 tool.session = agent.session
         
         # 4. Store inside FastAPI app state for global access
+        app.state.sessions = {}
         app.state.config = config
         app.state.agent = agent
-        app.state.pending_approvals = agent.session.pending_approvals
+        # app.state.pending_approvals = agent.session.pending_approvals
         logger.info("Agent initialized and Tools linked successfully")
-        logger.info(f"Approval policy: {config.approval}")
+        # logger.info(f"Approval policy: {config.approval}")
         
     except Exception as e:
         logger.error(f"Critical Failure during Agent Startup: {e}")
@@ -76,14 +78,82 @@ def create_app():
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    
+    # # Add permission dependency to all routes
+    # @app.middleware("http")
+    # async def auth_middleware(request: Request, call_next):
 
+    #     public_paths = ["/docs", "/openapi.json"]
+
+    #     if request.url.path.startswith(tuple(public_paths)):
+    #         return await call_next(request)
+
+    #     auth_header = request.headers.get("Authorization")
+
+        
+    #     if not auth_header or not auth_header.startswith("Bearer "):
+    #         return JSONResponse(
+    #             status_code=401,
+    #             content={"detail": "Missing authentication token"}
+    #         )
+
+    #     token = auth_header.split(" ")[1]
+
+    #     try:
+    #         user = decode_token(token)
+    #         request.state.user = user
+    #         request.state.token = token
+
+    #     except Exception as e:
+    #         print("JWT ERROR:", str(e))
+    #         return JSONResponse(
+    #             status_code=401,
+    #             content={"detail": "Invalid or expired token"}
+    #         )
+
+    #     response = await call_next(request)
+    #     return response
+
+    @app.middleware("http")
+    async def auth_middleware(request: Request, call_next):
+
+        public_paths = ["/docs", "/openapi.json"]
+
+        if request.url.path.startswith(tuple(public_paths)):
+            return await call_next(request)
+
+        auth_header = request.headers.get("Authorization")
+
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Missing authentication token"}
+            )
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            user = decode_token(token)
+
+            request.state.user = user
+            request.state.token = token
+
+        except Exception as e:
+            print("JWT ERROR:", str(e))
+
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid or expired token"}
+            )
+
+        response = await call_next(request)
+
+        return response
 
     app.include_router(agent_router, prefix="/api")
     app.include_router(websocket_router)
-    
-    # Mount static files for approval dashboard
-    app.mount("/static", StaticFiles(directory="static"), name="static")
 
+    
     return app
 
 
