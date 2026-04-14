@@ -45,7 +45,6 @@ class SOAPReportGenerator:
             ["Name", self.personal_info.get("name", "")],
             ["Age", self.personal_info.get("age", "")],
             ["Gender", self.personal_info.get("gender", "")],
-            ["Patient ID", self.personal_info.get("patient_id", "")],
             ["Report Date", summary_data.get("date", "")],
         ]
 

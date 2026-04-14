@@ -4,11 +4,6 @@ import os
 from pathlib import Path
 from typing import Any
 from pydantic import BaseModel, Field, model_validator
-from speechtospeech.providers.stt.factory import create_stt_provider
-from speechtospeech.providers.tts.factory import create_tts_provider
-from speechtospeech.audioprocessor import AudioProcessor
-from speechtospeech.speechtotext.sttengine import TranscriptionEngine
-from speechtospeech.texttospeech.ttsengine import TTSEngine
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -146,13 +141,17 @@ class Config(BaseModel):
         if not self.cwd.exists():
             errors.append(f"Working directory does not exist: {self.cwd}")
 
-        if not self.stt_provider:
-            errors.append("STT_PROVIDER not set")
-
-        if not self.stt_model:
-            errors.append("STT_MODEL not set")
-
         return errors
+
+    
+    @property
+    def iam_jwks_url(self):
+        return os.environ.get("IAM_JWKS_URL", "https://iam.drgodly.com/api/auth/jwks")
+
+    @property
+    def iam_issuer(self):
+        return os.environ.get("IAM_ISSUER", "https://iam.drgodly.com")
+
     
     @property
     def mlflow_enabled(self) -> bool:
@@ -164,108 +163,8 @@ class Config(BaseModel):
 
     @property
     def mlflow_experiment_name(self) -> str:
-        return os.environ.get("MLFLOW_EXPERIMENT_NAME", "AIAgent")
+        return os.environ.get("MLFLOW_EXPERIMENT_NAME", "ConsultAgent")
 
-    @property
-    def vad_enabled(self):
-        return os.environ.get("VAD_ENABLED", "true") == "true"
-    
-    @property
-    def stt_engine(self):
-
-        if not hasattr(self, "_stt_engine"):
-
-            provider = create_stt_provider(
-                self.stt_provider,
-                api_key=(
-                    self.hf_api_key if self.stt_provider == "huggingface"
-                    else self.openai_api_key
-                ),
-                model=self.stt_model,
-                endpoint_url=self.stt_endpoint
-            )
-
-            processor = AudioProcessor(target_rate=self.stt_sample_rate)
-
-            self._stt_engine = TranscriptionEngine(provider, processor)
-
-        return self._stt_engine
-
-    @property
-    def hf_api_key(self):
-        return os.environ.get("HF_API_KEY")
-
-    @property
-    def openai_api_key(self):
-        return os.environ.get("API_KEY")
-    
-    @property
-    def stt_provider(self) -> str:
-        return os.environ.get("STT_PROVIDER", "huggingface")
-
-    @property
-    def stt_model(self) -> str:
-        return os.environ.get("STT_MODEL", "openai/whisper-large-v3")
-
-    @property
-    def stt_endpoint(self) -> str | None:
-        return os.environ.get("STT_ENDPOINT")
-
-    @property
-    def stt_sample_rate(self) -> int:
-        return int(os.environ.get("STT_SAMPLE_RATE", "16000"))
-
-    # TTS CONFIG
-# --------------------------------------------------
-
-    @property
-    def tts_provider(self):
-        return os.environ.get("TTS_PROVIDER", "openai")
-
-    @property
-    def tts_model(self):
-        return os.environ.get("TTS_MODEL", "gpt-4o-mini-tts")
-
-    @property
-    def tts_endpoint(self):
-        return os.environ.get("TTS_ENDPOINT")
-
-    @property
-    def tts_sample_rate(self):
-        return int(os.environ.get("TTS_SAMPLE_RATE", "22050"))
-
-    @property
-    def iam_jwks_url(self):
-        return os.environ.get("IAM_JWKS_URL", "https://iam.drgodly.com/api/auth/jwks")
-
-    @property
-    def iam_issuer(self):
-        return os.environ.get("IAM_ISSUER", "https://iam.drgodly.com")
-
-    @property
-    def groq_api_key(self):
-        return os.environ.get("GROQ_API_KEY")
-
-    @property
-    def tts_engine(self):
-
-        if not hasattr(self, "_tts_engine"):
-
-            provider = create_tts_provider(
-                self.tts_provider,
-                api_key=(
-                    self.groq_api_key if self.tts_provider == "groq"
-                    else self.openai_api_key
-                ),
-                model=self.tts_model,
-                endpoint_url=self.tts_endpoint
-            )
-
-            processor = AudioProcessor(target_rate=self.tts_sample_rate)
-
-            self._tts_engine = TTSEngine(provider, processor)
-
-        return self._tts_engine
         
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump(mode="json")

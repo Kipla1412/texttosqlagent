@@ -36,7 +36,7 @@ class PatientSummaryReportGenerator:
         content.append(Spacer(1, 12))
 
         # Patient Info
-        for key in ["name", "age", "gender", "patient_id"]:
+        for key in ["name", "age", "gender"]:
             value = self.patient_info.get(key, "N/A")
             content.append(Paragraph(f"<b>{key.capitalize()}:</b> {value}", self.normal))
 

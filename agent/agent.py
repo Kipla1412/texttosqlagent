@@ -10,8 +10,6 @@ import json
 import time
 from datetime import datetime
 import asyncio
-from speechtospeech.webvad import VoiceActivityDetector
-
 class Agent:
     def __init__(
         self,
@@ -248,129 +246,7 @@ class Agent:
             self.session.context_manager.prune_tool_outputs()
         yield AgentEvent.agent_error(f"Maximum turns ({max_turns}) reached")
 
-    async def run_audio(self, audio, rate, session: Session | None = None):
-        import io
-        import soundfile as sf
-        import numpy as np
-        
-        active_session = session or self.session
 
-        if not hasattr(self, "vad"):
-            
-            self.vad = VoiceActivityDetector()
-
-        # Add new audio chunk to buffer
-        active_session.audio_buffer.append(audio)
-
-        # Speech detection + barge-in handling
-        if self.vad.is_speech(audio):
-
-            # User interrupts while agent speaking
-            if active_session.agent_speaking:
-                print("DEBUG: Barge-in detected")
-
-                # stop current TTS
-                active_session.agent_speaking = False
-
-                # reset audio buffer
-                active_session.reset_audio_buffer()
-
-            active_session.silence_chunks = 0
-
-        else:
-            active_session.silence_chunks += 1
-        
-        # Process if we have speech followed by silence (user finished speaking)
-        if len(active_session.audio_buffer) > 10 and active_session.silence_chunks >= 6:  # More responsive
-            print("DEBUG: User finished speaking, processing...")
-            
-            # Combine all buffered audio
-            total_audio = b''.join(active_session.audio_buffer)
-            
-            # Reset buffers
-            active_session.reset_audio_buffer()
-            
-            # Only process if we have enough audio (at least 0.5 seconds)
-            min_bytes = int(16000 * 1.0 * 2)
-            if len(total_audio) < min_bytes:
-                print("DEBUG: Too short, ignoring")
-                return
-        else:
-            # Keep collecting audio
-            return
-
-        # 1. STT Setup
-        stt_engine = self.config.stt_engine
-        
-        try:
-            # Convert raw bytes to Numpy Array
-            raw_audio_array = (
-                np.frombuffer(total_audio, dtype=np.int16)
-                .astype(np.float32) / 32768.0
-            )
-
-            samplerate = 16000
-            # Now the processor can handle it because it's an array with .ndim
-            processed = stt_engine.processor.process(raw_audio_array, samplerate)
-            audio_bytes = stt_engine.processor.to_bytes(processed)
-
-            # 2. Transcribe (using to_thread because it's a blocking network call)
-            user_text = await asyncio.to_thread(
-                stt_engine.provider.transcribe,
-                audio_bytes
-            )
-            
-            # DEBUG: Log what STT returned
-            print(f"DEBUG: STT returned: '{user_text}' (length: {len(user_text) if user_text else 0})")
-            
-        except Exception as e:
-            print(f"DEBUG: STT Exception: {str(e)}")
-            yield AgentEvent.agent_error(f"STT/Processing Error: {str(e)}")
-            return
-
-        # Handle empty speech
-        if not user_text or not user_text.strip():
-            print("DEBUG: No speech detected or empty transcription")
-            yield AgentEvent.agent_error("No speech detected - please speak clearly")
-            return
-
-        # Filter out very short transcriptions (likely noise)
-        clean_text = user_text.strip()
-
-        if len(clean_text) < 3:
-            print("DEBUG: Transcription too short, likely noise")
-            return
-
-        # Send user question to frontend
-        yield AgentEvent.user_question(user_text.strip())
-
-        # 3. Run normal agent loop
-        async for event in self.run(user_text):
-            yield event
-
-            # 4. Convert final response → speech
-            if event.type == AgentEventType.TEXT_COMPLETE:
-                try:
-                    tts = self.config.tts_engine
-                    
-                    # Wrap synthesize in to_thread so it doesn't block the async loop
-                    audio_out, sr = await asyncio.to_thread(
-                        tts.synthesize, 
-                        event.data["content"]
-
-                    )
-
-                    active_session.agent_speaking = True
-
-                    audio_bytes = tts.processor.array_to_wav_bytes(audio_out, sr)
-                    
-                    yield AgentEvent.voice_output(audio_bytes, sr)
-
-                    active_session.agent_speaking = False
-
-                except Exception as e:
-                    yield AgentEvent.agent_error(f"TTS Error: {str(e)}")
-        
     async def __aenter__(self) -> Agent:
         
         await self.session.initialize()

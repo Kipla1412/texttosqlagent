@@ -20,9 +20,6 @@ class AgentEventType(str, Enum):
     # Text streaming
     TEXT_DELTA = "text_delta"
     TEXT_COMPLETE = "text_complete"
-
-    # Voice output
-    VOICE_OUTPUT = "voice_output"
     
     # User input
     USER_QUESTION = "user_question"

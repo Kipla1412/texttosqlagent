@@ -11,9 +11,11 @@ You are a clinical documentation assistant.
 
 Based on the patient intake conversation below, generate THREE sections.
 
-1. PATIENT SUMMARY
-2. SOAP NOTE
-3. ASSESSMENT AND PLAN
+1. PATIENT SUMMARY - Do NOT include patient ID or any personal identifiers. Use only medical information and clinical findings.
+2. SOAP NOTE - Do NOT include patient ID or any personal identifiers. Use only medical information and clinical findings.
+3. ASSESSMENT AND PLAN - Do NOT include patient ID or any personal identifiers. Use only medical information and clinical findings.
+
+CRITICAL: Remove ALL patient IDs, names, or any personal identifiers from ALL sections. Include only medical information, symptoms, assessment, and treatment plans.
 
 Conversation:
 {conversation}

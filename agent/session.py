@@ -50,10 +50,6 @@ class Session:
         self.updated_at = datetime.now()
         self.turn_count = 0
 
-        self.audio_buffer: list[bytes] = []
-        self.silence_chunks: int = 0
-        self.agent_speaking = False
-
     async def _request_user_confirmation(self, confirmation):
 
         print("DEBUG: _request_user_confirmation START")
@@ -170,10 +166,6 @@ class Session:
             # "mlflow_stats": self.mlflow_tracker.get_session_stats()
         }
 
-
-    def reset_audio_buffer(self):
-        self.audio_buffer = []
-        self.silence_chunks = 0
         
 
     @asynccontextmanager

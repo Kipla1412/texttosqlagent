@@ -16,7 +16,7 @@ class ChatRequest(BaseModel):
 
 
 @router.post(
-    "/chat",
+    "/consultagent",
     summary="Agent Chat Interface",
     description="""
 Stream responses from the AI agent.
@@ -35,9 +35,9 @@ Authentication:
 Requires a valid authenticated user session.
 
 Permission Required:
-`agent:chat`
+`consultagent:chat`
 """,
-    dependencies=[Depends(require_permission("agent", "chat"))]
+    dependencies=[Depends(require_permission("consultagent", "chat"))]
 )
 async def chat(req: ChatRequest, request: Request):
 

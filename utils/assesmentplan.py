@@ -45,7 +45,7 @@ class AssessmentPlanReportGenerator:
         content.append(Spacer(1, 12))
 
         # Patient Info
-        for key in ["name", "age", "gender", "patient_id"]:
+        for key in ["name", "age", "gender"]:
             val = self.patient_info.get(key, "N/A")
             content.append(Paragraph(f"<b>{key.capitalize()}:</b> {val}", self.normal_style))
 
