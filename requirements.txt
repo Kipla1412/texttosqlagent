@@ -8,12 +8,12 @@ openai
 ddgs
 tiktoken
 fastapi
-reportlab
 websockets
 setuptools
 requests
-soundfile
 httpx
 rich
 click
 PyJWT>=2.0.0
+sqlalchemy
+psycopg2-binary
