@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
+
 load_dotenv()
 
 class ModelConfig(BaseModel):
@@ -151,6 +152,20 @@ class Config(BaseModel):
     @property
     def iam_issuer(self):
         return os.environ.get("IAM_ISSUER", "https://iam.drgodly.com")
+
+    @property
+    def database_url(self) -> str:
+        """
+        Returns the PostgreSQL database connection URL.
+        """
+        url = os.environ.get("DATABASE_URL")
+
+        if not url:
+            raise RuntimeError(
+                "DATABASE_URL environment variable is missing"
+            )
+
+        return url
 
     
     @property

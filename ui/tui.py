@@ -527,6 +527,10 @@ class TUI:
             if error and not success:
                 blocks.append(Text(error, style="error"))
 
+            # Handle list output (e.g., from database queries)
+            if isinstance(output, list):
+                output = str(output)
+            
             output_display = truncate_text(
                 output, self.config.model_name, self._max_block_tokens
             )

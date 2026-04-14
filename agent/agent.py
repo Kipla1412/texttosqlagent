@@ -10,6 +10,8 @@ import json
 import time
 from datetime import datetime
 import asyncio
+from db.schemaloader import SchemaLoader
+
 class Agent:
     def __init__(
         self,
@@ -25,12 +27,33 @@ class Agent:
     async def run(self, message: str):
 
         self.session.start_mlflow_run(message)
+
+        # load database schema
+        schema_loader = SchemaLoader(self.config)
+        schema = schema_loader.get_schema()
+
+        selected_tables = schema_loader.select_relevant_tables(message)
+
+        schema_text = schema_loader.format_schema(selected_tables)
+
+        combined_prompt = f"""
+            Database Schema:
+
+            {schema_text}
+
+            User Question:
+            {message}
+            """
+
+
+        # Inject schema into conversation as user message
+        self.session.context_manager.add_user_message(combined_prompt)
         
         await self.session.hook_system.trigger_before_agent(message)
 
         yield AgentEvent.agent_start(message)
         
-        self.session.context_manager.add_user_message(message)
+        # self.session.context_manager.add_user_message(message)
 
         final_response: str | None = None
 

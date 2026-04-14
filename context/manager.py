@@ -27,8 +27,11 @@ class MessageItem:
         if self.tool_calls:
             result["tool_calls"] = self.tool_calls
 
+        # Use simple string content for all message types
         if self.content:
             result["content"] = self.content
+        else:
+            result["content"] = ""
 
         return result
 

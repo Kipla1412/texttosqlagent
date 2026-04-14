@@ -115,6 +115,9 @@ class LLMClient:
         kwargs: dict[str, Any],
     ) -> AsyncGenerator[StreamEvent, None]:
         
+        # Debug: Print messages being sent
+        # print(f"DEBUG: Sending messages to API: {kwargs.get('messages', [])}")
+        
         response = await client.chat.completions.create(**kwargs)
 
         finish_reason: str | None = None

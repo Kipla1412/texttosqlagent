@@ -11,6 +11,10 @@ def get_tokenizer(model: str):
 
 
 def count_tokens(text: str, model: str = "gpt-4") -> int:
+    # Handle non-string inputs
+    if not isinstance(text, str):
+        text = str(text)
+    
     tokenizer = get_tokenizer(model)
 
     if tokenizer:
