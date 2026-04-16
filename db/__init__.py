@@ -1,9 +1,11 @@
 from .dbmanager import PostgresConnectionManager
 from .validator import SQLQueryValidator
-from .schemaloader import SchemaLoader
+from .schemaregistry import SchemaRegistry
+from .schemaservice import SchemaService
 
 __all__ = [
     "PostgresConnectionManager",
     "SQLQueryValidator", 
-    "SchemaLoader"
+    "SchemaRegistry",
+    "SchemaService"
 ]

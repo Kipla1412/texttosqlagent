@@ -16,8 +16,6 @@ def get_system_prompt(
     # Environment
     parts.append(_get_environment_section(config))
 
-    # Inject database schema
-    parts.append(_get_schema_section())
 
     if tools:
         parts.append(_get_tool_guidelines_section(tools))
@@ -98,17 +96,25 @@ Step 5 — Interpret Results
 Step 6 — Respond Clearly
 - Explain results in simple language
 
-Use SQL features such as:
-- SELECT
-- WHERE
-- JOIN
-- COUNT
-- GROUP BY
+Rules:
 
-# CRITICAL: Tool Usage
-- ALWAYS call postgres_query tool when you generate SQL
-- NEVER just display SQL query text without executing it
-- The postgres_query tool is required to actually run the query
+- Only SELECT queries are allowed
+- ALWAYS use proper JOIN conditions
+- ALWAYS use patient.id for joins
+- NEVER use patient.patient_id for joins
+- Prefer explicit columns instead of *
+- Use LIMIT when necessary
+
+JOIN RULES (VERY IMPORTANT):
+- ONLY use required tables to answer the question
+- DO NOT add unnecessary joins
+- DO NOT include unrelated tables
+- Keep queries minimal and efficient
+
+CRITICAL:
+
+- NEVER output SQL as plain text
+- ALWAYS execute using postgres_query tool
 """
 
 def _get_tool_chaining_rules() -> str:
@@ -174,34 +180,6 @@ def _get_security_section() -> str:
 - Protect sensitive healthcare data.
 
 If a user asks for modifying data, explain that the system only supports read-only queries.
-"""
-
-def _get_schema_section() -> str:
-    return """# Database Schema
-
-Tables available:
-
-patient
-Columns:
-id, patient_id, given_name, family_name, gender, birth_date
-
-patient_identifier
-Columns:
-id, patient_id, system, value
-
-patient_telecom
-Columns:
-id, patient_id, system, value, use
-
-patient_address
-Columns:
-id, patient_id, line, city, state, postal_code, country
-
-Relationships:
-
-patient.id = patient_identifier.patient_id
-patient.id = patient_telecom.patient_id
-patient.id = patient_address.patient_id
 """
 
 def _get_developer_instructions_section(instructions: str) -> str:

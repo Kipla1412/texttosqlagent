@@ -10,7 +10,9 @@ import json
 import time
 from datetime import datetime
 import asyncio
-from db.schemaloader import SchemaLoader
+from db.schemaservice import SchemaService
+import re
+import json
 
 class Agent:
     def __init__(
@@ -29,23 +31,26 @@ class Agent:
         self.session.start_mlflow_run(message)
 
         # load database schema
-        schema_loader = SchemaLoader(self.config)
-        schema = schema_loader.get_schema()
+        schema_service = SchemaService()
+        schema_text = schema_service.get_schema_for_question(message)
 
-        selected_tables = schema_loader.select_relevant_tables(message)
-
-        schema_text = schema_loader.format_schema(selected_tables)
-
+        # Strong structured prompt
         combined_prompt = f"""
-            Database Schema:
+You are a SQL assistant for a healthcare database.
 
-            {schema_text}
+STRICT RULES:
+- Only generate SELECT queries
+- NEVER use INSERT, UPDATE, DELETE, DROP
+- ALWAYS use correct joins based on relationships
+- Use table aliases when needed
+- Prefer explicit column names instead of *
 
-            User Question:
-            {message}
-            """
+{schema_text}
 
-
+User Question:
+{message}
+"""
+        combined_prompt = combined_prompt.strip()
         # Inject schema into conversation as user message
         self.session.context_manager.add_user_message(combined_prompt)
         
@@ -173,7 +178,8 @@ class Agent:
                 return
 
             tool_call_results: list[ToolResultMessage] = []
-
+            
+            retry_needed = False
             for tool_call in tool_calls:
                 yield AgentEvent.tool_call_start(
                     tool_call.call_id,
@@ -242,7 +248,7 @@ class Agent:
                         tool_call.name,
                         result,
                     )
-
+                    
                     tool_call_results.append(
                         ToolResultMessage(
                             tool_call_id=tool_call.call_id,
@@ -251,11 +257,67 @@ class Agent:
                         )
                     )
 
+
+                    # INIT retry counter
+                    if not hasattr(self.session, "fix_attempts"):
+                        self.session.fix_attempts = 0
+
+                    # RESET on success
+                    if result.success:
+                        self.session.fix_attempts = 0
+
+                    # ✅ RETRY ONLY WHEN ERROR
+                    if (
+                        tool_call.name == "postgres_query"
+                        and not result.success
+                        and self.session.fix_attempts < 2
+                    ):
+                        failed_query = tool_call.arguments.get("query")
+
+                        if failed_query:
+                            self.session.fix_attempts += 1   # IMPORTANT
+
+                            error_msg = result.error or "Unknown SQL error"
+
+                            print("SQL ERROR:", error_msg)
+                            
+                            schema_service = SchemaService()
+                            schema_text = schema_service.get_schema_for_question(failed_query)
+
+                            retry_prompt = (
+                                "The SQL query failed.\n"
+                                "\n"
+                                "Query:\n"
+                                f"{failed_query}\n"
+                                "\n"
+                                "Error:\n"
+                                f"{error_msg}\n"
+                                "\n"
+                                "Schema:\n"
+                                f"{schema_text}\n"
+                                "\n"
+                                "Fix the SQL query.\n"
+                                "\n"
+                                "Rules:\n"
+                                "- Return ONLY SQL\n"
+                                "- Do NOT explain\n"
+                                "- Must be valid PostgreSQL\n"
+                            ).strip()
+
+                            retry_needed = True
+                            break 
+                            # self.session.context_manager.add_user_message(retry_prompt)
+                            # break  # go next turn
+
             for tool_result in tool_call_results:
                 self.session.context_manager.add_tool_result(
                     tool_result.tool_call_id,
                     tool_result.content,
                 )
+
+            if retry_needed:
+                self.session.context_manager.add_user_message(retry_prompt)
+                continue  # go next LLM turn
 
             loop_detection_error = self.session.loop_detector.check_for_loop()
             if loop_detection_error:

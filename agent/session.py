@@ -49,6 +49,7 @@ class Session:
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
         self.turn_count = 0
+        self.state: dict[str, Any] = {}
 
     async def _request_user_confirmation(self, confirmation):
 

@@ -18,31 +18,12 @@ class PostgresQueryTool(Tool):
 
     name = "postgres_query"
     description = """
-Execute SQL queries on the FHIR patient database.
+Execute read-only SQL queries on the healthcare database.
 
-Tables available:
-
-patient
-Columns:
-id, patient_id, given_name, family_name, gender, birth_date
-
-patient_identifier
-Columns:
-id, patient_id, system, value
-
-patient_telecom
-Columns:
-id, patient_id, system, value, use
-
-patient_address
-Columns:
-id, patient_id, line, city, state, postal_code, country
-
-Relationships:
-
-patient.id = patient_identifier.patient_id
-patient.id = patient_telecom.patient_id
-patient.id = patient_address.patient_id
+Rules:
+- Only SELECT queries are allowed
+- Use proper JOINs based on relationships
+- Always limit results when possible
 """
     kind = ToolKind.READ
     schema = PostgresQueryParams  
@@ -51,9 +32,26 @@ patient.id = patient_address.patient_id
         super().__init__(config)
         print("Initializing PostgresQueryTool")
 
-        # Create DuckDB connection
+        # Create PostgreSQL connection
         self.engine = PostgresConnectionManager.get_engine()
-                
+    
+    def _clean_query(self, query: str) -> str:
+        query = re.sub(r"```.*?```", "", query, flags=re.DOTALL)
+        return query.strip().rstrip(";")
+
+    def _add_limit(self, query: str) -> str:
+        query_clean = query.strip().rstrip(";")
+
+        match = re.search(r"\blimit\s+(\d+)", query_clean, re.IGNORECASE)
+
+        if match:
+            limit_val = int(match.group(1))
+            if limit_val > 100:
+                return re.sub(r"\blimit\s+\d+", "LIMIT 100", query_clean, flags=re.IGNORECASE)
+            return query_clean
+
+        return query_clean + " LIMIT 50"
+    
     async def execute(self, invocation: ToolInvocation) -> ToolResult:
 
         query = invocation.params.get("query")
@@ -61,16 +59,23 @@ patient.id = patient_address.patient_id
         if not query:
             return ToolResult.error_result("Missing SQL query")
 
+        query = query.replace("```sql", "").replace("```", "").strip()
+       
         # safety check
         is_valid, error = SQLQueryValidator.validate(query)
         if not is_valid:
             return ToolResult.error_result(error)
+        
+        # add limit if not present
+        safe_query = self._add_limit(query)
 
         try:
 
             with self.engine.connect() as conn:
 
-                result = conn.execute(text(query))
+                conn.execute(text("SET statement_timeout = 5000"))
+
+                result = conn.execute(text(safe_query))
 
                 rows = result.fetchall()
 
@@ -80,13 +85,20 @@ patient.id = patient_address.patient_id
 
             return ToolResult.success_result(
                 # output=str(records),
-                output=json.dumps(records),
-                metadata={"rows_returned": len(records)}
+                output=json.dumps(records if records else [{"message": "No data found"}], default=str),
+                metadata={
+                    "rows_returned": len(records),
+                    "query": safe_query
+                }
             )
 
         except Exception as e:
-
+            error_message = str(e).split("\n")[0]
             return ToolResult.error_result(
-                error=str(e),
-                output="SQL execution failed"
-            )
+                error=error_message,
+                output=json.dumps({
+                    "failed_query": query,
+                    "error_message": error_message
+                })
+            )   
+            
