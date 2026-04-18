@@ -17,3 +17,5 @@ click
 PyJWT>=2.0.0
 sqlalchemy
 psycopg2-binary
+sentence-transformers
+authlib

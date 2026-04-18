@@ -13,19 +13,38 @@ class SchemaRegistry:
                 "Use this table when querying patient names, gender, status, or general profile details."
             ),
             "columns": {
-                "id": (
-                    "Primary Key (PK). Internal identifier used for joins."
-                ),
-                "patient_id": (
-                    "External identifier. DO NOT use for joins. "
-                    "Always use 'id' for joins."
-                ),
-                "given_name": "First name of the patient.",
-                "family_name": "Last name of the patient.",
-                "gender": "Gender of the patient (male, female, other).",
-                "birth_date": "Date of birth of the patient.",
-                "active": "Indicates if patient is active.",
-                "deceased_boolean": "Indicates if patient is deceased."
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary Key (PK). Internal identifier used for joins."
+                },
+                "patient_id": {
+                    "type": "VARCHAR", 
+                    "description": "External identifier. DO NOT use for joins. Always use 'id' for joins."
+                },
+                "given_name": {
+                    "type": "VARCHAR",
+                    "description": "First name of the patient."
+                },
+                "family_name": {
+                    "type": "VARCHAR", 
+                    "description": "Last name of the patient."
+                },
+                "gender": {
+                    "type": "VARCHAR",
+                    "description": "Gender of the patient (male, female, other)."
+                },
+                "birth_date": {
+                    "type": "DATE",
+                    "description": "Date of birth of the patient."
+                },
+                "active": {
+                    "type": "BOOLEAN",
+                    "description": "Indicates if patient is active."
+                },
+                "deceased_boolean": {
+                    "type": "BOOLEAN",
+                    "description": "Indicates if patient is deceased."
+                }
             },
             "join_hint": "Use patient.id for joins with other tables",
             "role": "Primary table for all joins",
@@ -38,16 +57,22 @@ class SchemaRegistry:
                 "Each patient can have multiple identifiers."
             ),
             "columns": {
-                "id": "Primary key for the identifier record.",
-                "patient_id": (
-                    "Foreign key referencing patient.id. Used to link identifiers to a patient."
-                ),
-                "system": (
-                    "Type of identifier (e.g., 'Aadhar', 'Passport', 'Insurance')."
-                ),
-                "value": (
-                    "Actual identifier value assigned to the patient."
-                ),
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key for the identifier record."
+                },
+                "patient_id": {
+                    "type": "INTEGER",
+                    "description": "Foreign key referencing patient.id. Used to link identifiers to a patient."
+                },
+                "system": {
+                    "type": "VARCHAR",
+                    "description": "Type of identifier (e.g., 'Aadhar', 'Passport', 'Insurance')."
+                },
+                "value": {
+                    "type": "VARCHAR",
+                    "description": "Actual identifier value assigned to the patient."
+                },
             },
             "join_hint": "Join using patient_identifier.patient_id = patient.id",
         },
@@ -61,11 +86,26 @@ class SchemaRegistry:
                 "- Retrieve email addresses"
             ),
             "columns": {
-                "id": "Primary Key (PK). Unique telecom record.",
-                "patient_id": "Foreign Key (FK) → patient.id. Used for joins.",
-                "system": "Contact type: phone, email, sms.",
-                "value": "Actual contact value.",
-                "use": "Usage type: home, work, mobile."
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary Key (PK). Unique telecom record."
+                },
+                "patient_id": {
+                    "type": "INTEGER",
+                    "description": "Foreign Key (FK) -> patient.id. Used for joins."
+                },
+                "system": {
+                    "type": "VARCHAR",
+                    "description": "Contact type: phone, email, sms."
+                },
+                "value": {
+                    "type": "VARCHAR",
+                    "description": "Actual contact value."
+                },
+                "use": {
+                    "type": "VARCHAR",
+                    "description": "Usage type: home, work, mobile."
+                }
             },
             "join_hint": "patient.id = patient_telecom.patient_id",
             "relationship": "One patient can have multiple telecom records (1:N)",
@@ -81,13 +121,34 @@ class SchemaRegistry:
                 "- Filter patients by city or state"
             ),
             "columns": {
-                "id": "Primary Key (PK). Unique address record.",
-                "patient_id": "Foreign Key (FK) → patient.id. Used for joins.",
-                "line": "Street address or house details.",
-                "city": "City where the patient resides.",
-                "state": "State or region of the patient.",
-                "postal_code": "ZIP or postal code.",
-                "country": "Country of residence."
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary Key (PK). Unique address record."
+                },
+                "patient_id": {
+                    "type": "INTEGER",
+                    "description": "Foreign Key (FK) -> patient.id. Used for joins."
+                },
+                "line": {
+                    "type": "VARCHAR",
+                    "description": "Street address or house details."
+                },
+                "city": {
+                    "type": "VARCHAR",
+                    "description": "City where the patient resides."
+                },
+                "state": {
+                    "type": "VARCHAR",
+                    "description": "State or region of the patient."
+                },
+                "postal_code": {
+                    "type": "VARCHAR",
+                    "description": "ZIP or postal code."
+                },
+                "country": {
+                    "type": "VARCHAR",
+                    "description": "Country of residence."
+                }
             },
             "join_hint": "patient.id = patient_address.patient_id",
             "relationship": "One patient can have multiple addresses (1:N)",
@@ -111,21 +172,66 @@ class SchemaRegistry:
                 "Each row represents one practitioner."
             ),
             "columns": {
-                "id": "Primary Key (PK). Internal identifier used for joins.",
-                "practitioner_id": "External public ID. DO NOT use for joins.",
-                "user_id": "User reference ID.",
-                "org_id": "Organization ID.",
-                "active": "Indicates if practitioner is active.",
-                "given_name": "First name of practitioner.",
-                "family_name": "Last name of practitioner.",
-                "gender": "Gender of practitioner.",
-                "birth_date": "Date of birth.",
-                "role": "Role (doctor, nurse, specialist).",
-                "specialty": "Medical specialty.",
-                "deceased_boolean": "Whether practitioner is deceased.",
-                "deceased_datetime": "Date/time of death.",
-                "created_at": "Record creation timestamp.",
-                "updated_at": "Last updated timestamp.",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary Key (PK). Internal identifier used for joins."
+                },
+                "practitioner_id": {
+                    "type": "VARCHAR",
+                    "description": "External public ID. DO NOT use for joins."
+                },
+                "user_id": {
+                    "type": "INTEGER",
+                    "description": "User reference ID."
+                },
+                "org_id": {
+                    "type": "INTEGER",
+                    "description": "Organization ID."
+                },
+                "active": {
+                    "type": "BOOLEAN",
+                    "description": "Indicates if practitioner is active."
+                },
+                "given_name": {
+                    "type": "VARCHAR",
+                    "description": "First name of practitioner."
+                },
+                "family_name": {
+                    "type": "VARCHAR",
+                    "description": "Last name of practitioner."
+                },
+                "gender": {
+                    "type": "VARCHAR",
+                    "description": "Gender of practitioner."
+                },
+                "birth_date": {
+                    "type": "DATE",
+                    "description": "Date of birth."
+                },
+                "role": {
+                    "type": "VARCHAR",
+                    "description": "Role (doctor, nurse, specialist)."
+                },
+                "specialty": {
+                    "type": "VARCHAR",
+                    "description": "Medical specialty."
+                },
+                "deceased_boolean": {
+                    "type": "BOOLEAN",
+                    "description": "Whether practitioner is deceased."
+                },
+                "deceased_datetime": {
+                    "type": "TIMESTAMP",
+                    "description": "Date/time of death."
+                },
+                "created_at": {
+                    "type": "TIMESTAMP",
+                    "description": "Record creation timestamp."
+                },
+                "updated_at": {
+                    "type": "TIMESTAMP",
+                    "description": "Last updated timestamp."
+                }
             },
             "join_hint": "Use practitioner.id for joins",
             "role": "Primary table for practitioner queries",
@@ -138,12 +244,30 @@ class SchemaRegistry:
                     "registration IDs, or certifications."
                 ),
                 "columns": {
-                    "id": "Primary key.",
-                    "practitioner_id": "Foreign Key (FK) → practitioner.id",
-                    "org_id": "Organization ID.",
-                    "system": "Type of identifier (license, registration).",
-                    "value": "Identifier value.",
-                    "use": "Usage type.",
+                    "id": {
+                        "type": "INTEGER",
+                        "description": "Primary key."
+                    },
+                    "practitioner_id": {
+                        "type": "INTEGER",
+                        "description": "Foreign Key (FK) -> practitioner.id"
+                    },
+                    "org_id": {
+                        "type": "INTEGER",
+                        "description": "Organization ID."
+                    },
+                    "system": {
+                        "type": "VARCHAR",
+                        "description": "Type of identifier (license, registration)."
+                    },
+                    "value": {
+                        "type": "VARCHAR",
+                        "description": "Identifier value."
+                    },
+                    "use": {
+                        "type": "VARCHAR",
+                        "description": "Usage type."
+                    },
                 },
                 "join_hint": "practitioner.id = practitioner_identifier.practitioner_id",
                 "relationship": "One practitioner can have multiple identifiers (1:N)",
@@ -171,18 +295,54 @@ class SchemaRegistry:
                 "Stores practitioner address details including location and postal information."
             ),
             "columns": {
-                "id": "Primary key.",
-                "practitioner_id": "Foreign Key (FK) → practitioner.id",
-                "org_id": "Organization ID.",
-                "use": "Address usage type.",
-                "type": "Address type.",
-                "text": "Full address text.",
-                "line": "Street address.",
-                "city": "City.",
-                "district": "District.",
-                "state": "State.",
-                "postal_code": "ZIP or postal code.",
-                "country": "Country.",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key."
+                },
+                "practitioner_id": {
+                    "type": "INTEGER",
+                    "description": "Foreign Key (FK) → practitioner.id"
+                },
+                "org_id": {
+                    "type": "INTEGER",
+                    "description": "Organization ID."
+                },
+                "use": {
+                    "type": "VARCHAR",
+                    "description": "Address usage type."
+                },
+                "type": {
+                    "type": "VARCHAR",
+                    "description": "Address type."
+                },
+                "text": {
+                    "type": "VARCHAR",
+                    "description": "Full address text."
+                },
+                "line": {
+                    "type": "VARCHAR",
+                    "description": "Street address."
+                },
+                "city": {
+                    "type": "VARCHAR",
+                    "description": "City."
+                },
+                "district": {
+                    "type": "VARCHAR",
+                    "description": "District."
+                },
+                "state": {
+                    "type": "VARCHAR",
+                    "description": "State."
+                },
+                "postal_code": {
+                    "type": "VARCHAR",
+                    "description": "ZIP or postal code."
+                },
+                "country": {
+                    "type": "VARCHAR",
+                    "description": "Country."
+                },
             },
             "join_hint": "practitioner.id = practitioner_address.practitioner_id",
             "relationship": "One practitioner can have multiple addresses (1:N)",
@@ -193,13 +353,34 @@ class SchemaRegistry:
                 "Stores practitioner qualifications such as degrees, certifications, and issuing organizations."
             ),
             "columns": {
-                "id": "Primary key.",
-                "practitioner_id": "Foreign Key (FK) → practitioner.id",
-                "org_id": "Organization ID.",
-                "identifier_system": "Qualification identifier system.",
-                "identifier_value": "Qualification identifier value.",
-                "code_text": "Qualification (MD, PhD, etc).",
-                "issuer": "Organization issuing the qualification.",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key."
+                },
+                "practitioner_id": {
+                    "type": "INTEGER",
+                    "description": "Foreign Key (FK) → practitioner.id"
+                },
+                "org_id": {
+                    "type": "INTEGER",
+                    "description": "Organization ID."
+                },
+                "identifier_system": {
+                    "type": "VARCHAR",
+                    "description": "Qualification identifier system."
+                },
+                "identifier_value": {
+                    "type": "VARCHAR",
+                    "description": "Qualification identifier value."
+                },
+                "code_text": {
+                    "type": "VARCHAR",
+                    "description": "Qualification (MD, PhD, etc)."
+                },
+                "issuer": {
+                    "type": "VARCHAR",
+                    "description": "Organization issuing the qualification."
+                },
             },
             "join_hint": "practitioner.id = practitioner_qualification.practitioner_id",
             "relationship": "One practitioner can have multiple qualifications (1:N)",
@@ -221,20 +402,62 @@ class SchemaRegistry:
                 "Each row represents one encounter (visit/consultation)."
             ),
             "columns": {
-                "id": "Primary Key (PK). Internal ID used for joins.",
-                "encounter_id": "External public ID. DO NOT use for joins.",
-                "user_id": "User reference ID.",
-                "org_id": "Organization ID.",
-                "status": "Encounter status (planned, in-progress, finished, cancelled).",
-                "class_code": "Type of encounter (inpatient, outpatient, emergency).",
-                "priority": "Priority level.",
-                "subject_type": "Type of subject (patient).",
-                "subject_id": "Reference ID → patient.id",
-                "subject_display": "Display name of subject.",
-                "period_start": "Start time of encounter.",
-                "period_end": "End time of encounter.",
-                "created_at": "Creation timestamp.",
-                "updated_at": "Last updated timestamp.",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary Key (PK). Internal ID used for joins."
+                },
+                "encounter_id": {
+                    "type": "VARCHAR",
+                    "description": "External public ID. DO NOT use for joins."
+                },
+                "user_id": {
+                    "type": "INTEGER",
+                    "description": "User reference ID."
+                },
+                "org_id": {
+                    "type": "INTEGER",
+                    "description": "Organization ID."
+                },
+                "status": {
+                    "type": "VARCHAR",
+                    "description": "Encounter status (planned, in-progress, finished, cancelled)."
+                },
+                "class_code": {
+                    "type": "VARCHAR",
+                    "description": "Type of encounter (inpatient, outpatient, emergency)."
+                },
+                "priority": {
+                    "type": "VARCHAR",
+                    "description": "Priority level."
+                },
+                "subject_type": {
+                    "type": "VARCHAR",
+                    "description": "Type of subject (patient)."
+                },
+                "subject_id": {
+                    "type": "INTEGER",
+                    "description": "Reference ID → patient.id"
+                },
+                "subject_display": {
+                    "type": "VARCHAR",
+                    "description": "Display name of subject."
+                },
+                "period_start": {
+                    "type": "TIMESTAMP",
+                    "description": "Start time of encounter."
+                },
+                "period_end": {
+                    "type": "TIMESTAMP",
+                    "description": "End time of encounter."
+                },
+                "created_at": {
+                    "type": "TIMESTAMP",
+                    "description": "Creation timestamp."
+                },
+                "updated_at": {
+                    "type": "TIMESTAMP",
+                    "description": "Last updated timestamp."
+                },
             },
             "join_hint": (
                 "Use encounter.subject_id = patient.id for patient joins"
@@ -248,14 +471,38 @@ class SchemaRegistry:
                 "Stores participants involved in an encounter, such as doctors or practitioners."
             ),
             "columns": {
-                "id": "Primary key.",
-                "encounter_id": "FK → encounter.id",
-                "org_id": "Organization ID.",
-                "type_text": "Role (Primary Physician, Consultant).",
-                "reference_type": "Type of participant (practitioner).",
-                "individual_reference": "Reference ID → practitioner.id",
-                "period_start": "Participation start time.",
-                "period_end": "Participation end time.",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key."
+                },
+                "encounter_id": {
+                    "type": "INTEGER",
+                    "description": "FK → encounter.id"
+                },
+                "org_id": {
+                    "type": "INTEGER",
+                    "description": "Organization ID."
+                },
+                "type_text": {
+                    "type": "VARCHAR",
+                    "description": "Role (Primary Physician, Consultant)."
+                },
+                "reference_type": {
+                    "type": "VARCHAR",
+                    "description": "Type of participant (practitioner)."
+                },
+                "individual_reference": {
+                    "type": "INTEGER",
+                    "description": "Reference ID → practitioner.id"
+                },
+                "period_start": {
+                    "type": "TIMESTAMP",
+                    "description": "Participation start time."
+                },
+                "period_end": {
+                    "type": "TIMESTAMP",
+                    "description": "Participation end time."
+                },
             },
             "join_hint": (
                 "encounter.id = encounter_participant.encounter_id "
@@ -280,11 +527,26 @@ class SchemaRegistry:
         "encounter_diagnosis": {
             "description": "Stores diagnoses associated with encounter",
             "columns": {
-                "id": "Primary key",
-                "encounter_id": "FK → encounter.id",
-                "condition_reference": "Reference to condition",
-                "use_text": "Usage (admission, discharge)",
-                "rank": "Priority rank",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key"
+                },
+                "encounter_id": {
+                    "type": "INTEGER",
+                    "description": "FK → encounter.id"
+                },
+                "condition_reference": {
+                    "type": "VARCHAR",
+                    "description": "Reference to condition"
+                },
+                "use_text": {
+                    "type": "VARCHAR",
+                    "description": "Usage (admission, discharge)"
+                },
+                "rank": {
+                    "type": "INTEGER",
+                    "description": "Priority rank"
+                },
             },
             "join_hint": "encounter.id = encounter_diagnosis.encounter_id",
         },
@@ -292,12 +554,30 @@ class SchemaRegistry:
         "encounter_location": {
             "description": "Stores location details for encounter",
             "columns": {
-                "id": "Primary key",
-                "encounter_id": "FK → encounter.id",
-                "location_reference": "Location reference",
-                "status": "Location status",
-                "period_start": "Start time",
-                "period_end": "End time",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key"
+                },
+                "encounter_id": {
+                    "type": "INTEGER",
+                    "description": "FK → encounter.id"
+                },
+                "location_reference": {
+                    "type": "VARCHAR",
+                    "description": "Location reference"
+                },
+                "status": {
+                    "type": "VARCHAR",
+                    "description": "Location status"
+                },
+                "period_start": {
+                    "type": "TIMESTAMP",
+                    "description": "Start time"
+                },
+                "period_end": {
+                    "type": "TIMESTAMP",
+                    "description": "End time"
+                },
             },
             "join_hint": "encounter.id = encounter_location.encounter_id",
         },
@@ -305,12 +585,30 @@ class SchemaRegistry:
         "encounter_reason_code": {
             "description": "Stores reasons for encounter",
             "columns": {
-                "id": "Primary key",
-                "encounter_id": "FK → encounter.id",
-                "coding_system": "Code system",
-                "coding_code": "Code",
-                "coding_display": "Display",
-                "text": "Reason description",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key"
+                },
+                "encounter_id": {
+                    "type": "INTEGER",
+                    "description": "FK → encounter.id"
+                },
+                "coding_system": {
+                    "type": "VARCHAR",
+                    "description": "Code system"
+                },
+                "coding_code": {
+                    "type": "VARCHAR",
+                    "description": "Code"
+                },
+                "coding_display": {
+                    "type": "VARCHAR",
+                    "description": "Display"
+                },
+                "text": {
+                    "type": "VARCHAR",
+                    "description": "Reason description"
+                },
             },
             "join_hint": "encounter.id = encounter_reason_code.encounter_id",
         },
@@ -331,17 +629,26 @@ class SchemaRegistry:
                 "- Always join encounter first, then resolve reference dynamically"
             ),
             "columns": {
-                "id": "Primary key.",
-                "encounter_id": "Foreign Key (FK) → encounter.id.",
-                "reference_type": (
-                    "Type of referenced resource (e.g., appointment, service_request, referral)."
-                ),
-                "reference_id": (
-                    "ID of the referenced resource. Join depends on reference_type."
-                ),
-                "reference_display": (
-                    "Human-readable display value of the referenced resource."
-                ),
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key."
+                },
+                "encounter_id": {
+                    "type": "INTEGER",
+                    "description": "Foreign Key (FK) → encounter.id."
+                },
+                "reference_type": {
+                    "type": "VARCHAR",
+                    "description": "Type of referenced resource (e.g., appointment, service_request, referral)."
+                },
+                "reference_id": {
+                    "type": "INTEGER",
+                    "description": "ID of the referenced resource. Join depends on reference_type."
+                },
+                "reference_display": {
+                    "type": "VARCHAR",
+                    "description": "Human-readable display value of referenced resource."
+                },
             },
             "join_hint": (
                 "encounter.id = based_on.encounter_id, "
@@ -411,26 +718,74 @@ class SchemaRegistry:
                 "Used for scheduling, tracking visits, and linking to encounters."
             ),
             "columns": {
-                "id": "Primary Key (PK). Internal identifier used for joins.",
-                "appointment_id": "External public ID. DO NOT use for joins.",
-                "user_id": "User reference ID.",
-                "org_id": "Organization ID.",
-                "status": "Appointment status (booked, cancelled, fulfilled, etc).",
-                "start": "Appointment start datetime.",
-                "end": "Appointment end datetime.",
-                "minutes_duration": "Duration of appointment in minutes.",
-                "description": "Description of appointment.",
-                "priority_value": "Priority level.",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary Key (PK). Internal identifier used for joins."
+                },
+                "appointment_id": {
+                    "type": "VARCHAR",
+                    "description": "External public ID. DO NOT use for joins."
+                },
+                "user_id": {
+                    "type": "INTEGER",
+                    "description": "User reference ID."
+                },
+                "org_id": {
+                    "type": "INTEGER",
+                    "description": "Organization ID."
+                },
+                "status": {
+                    "type": "VARCHAR",
+                    "description": "Appointment status (booked, cancelled, fulfilled, etc)."
+                },
+                "start": {
+                    "type": "TIMESTAMP",
+                    "description": "Appointment start datetime."
+                },
+                "end": {
+                    "type": "TIMESTAMP",
+                    "description": "Appointment end datetime."
+                },
+                "minutes_duration": {
+                    "type": "INTEGER",
+                    "description": "Duration of appointment in minutes."
+                },
+                "description": {
+                    "type": "VARCHAR",
+                    "description": "Description of appointment."
+                },
+                "priority_value": {
+                    "type": "INTEGER",
+                    "description": "Priority level."
+                },
                 
                 #  SUBJECT (POLYMORPHIC)
-                "subject_type": "Type of subject (e.g., patient).",
-                "subject_id": "ID of subject (join depends on subject_type).",
-
+                "subject_type": {
+                    "type": "VARCHAR",
+                    "description": "Type of subject (e.g., patient)."
+                },
+                "subject_id": {
+                    "type": "INTEGER",
+                    "description": "ID of subject (join depends on subject_type)."
+                },
+                "subject_display": {
+                    "type": "VARCHAR",
+                    "description": "Display name of subject."
+                },
+                
                 # LINK TO ENCOUNTER
-                "encounter_id": "FK → encounter.id (appointment linked to encounter).",
-
-                "created_at": "Record creation timestamp.",
-                "updated_at": "Last updated timestamp.",
+                "encounter_id": {
+                    "type": "INTEGER",
+                    "description": "FK → encounter.id (appointment linked to encounter)."
+                },
+                "created_at": {
+                    "type": "TIMESTAMP",
+                    "description": "Record creation timestamp."
+                },
+                "updated_at": {
+                    "type": "TIMESTAMP",
+                    "description": "Last updated timestamp."
+                },
             },
             "join_hint": "Use appointment.id for joins",
             "role": "Primary table for scheduling and appointment queries",
@@ -443,16 +798,30 @@ class SchemaRegistry:
                 "Includes patient, practitioner, or other actors."
             ),
             "columns": {
-                "id": "Primary key.",
-                "appointment_id": "Foreign Key (FK) → appointment.id",
-                "actor_reference_type": (
-                    "Type of actor (patient, practitioner). Determines join target."
-                ),
-                "actor_reference_id": (
-                    "ID of referenced actor (join depends on actor_reference_type)."
-                ),
-                "actor_display": "Display name of participant.",
-                "status": "Participation status (accepted, declined, etc).",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key."
+                },
+                "appointment_id": {
+                    "type": "INTEGER",
+                    "description": "Foreign Key (FK) → appointment.id"
+                },
+                "actor_reference_type": {
+                    "type": "VARCHAR",
+                    "description": "Type of actor (patient, practitioner). Determines join target."
+                },
+                "actor_reference_id": {
+                    "type": "INTEGER",
+                    "description": "ID of referenced actor (join depends on actor_reference_type)."
+                },
+                "actor_display": {
+                    "type": "VARCHAR",
+                    "description": "Display name of participant."
+                },
+                "status": {
+                    "type": "VARCHAR",
+                    "description": "Participation status (accepted, declined, etc)."
+                },
             },
             "join_hint": "appointment.id = appointment_participant.appointment_id",
             "relationship": "One appointment can have multiple participants (1:N)",
@@ -461,11 +830,26 @@ class SchemaRegistry:
         "appointment_reason_code": {
             "description": "Stores reason for appointment (symptoms, purpose).",
             "columns": {
-                "id": "Primary key.",
-                "appointment_id": "Foreign Key (FK) → appointment.id",
-                "coding_code": "Reason code.",
-                "coding_display": "Human-readable reason.",
-                "text": "Additional description.",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key."
+                },
+                "appointment_id": {
+                    "type": "INTEGER",
+                    "description": "Foreign Key (FK) → appointment.id"
+                },
+                "coding_code": {
+                    "type": "VARCHAR",
+                    "description": "Reason code."
+                },
+                "coding_display": {
+                    "type": "VARCHAR",
+                    "description": "Human-readable reason."
+                },
+                "text": {
+                    "type": "VARCHAR",
+                    "description": "Additional description."
+                },
             },
             "join_hint": "appointment.id = appointment_reason_code.appointment_id",
         },
@@ -476,11 +860,26 @@ class SchemaRegistry:
                 "Defines frequency such as daily, weekly, monthly."
             ),
             "columns": {
-                "id": "Primary key.",
-                "appointment_id": "Foreign Key (FK) → appointment.id",
-                "recurrence_type_code": "Frequency (daily, weekly, monthly).",
-                "occurrence_count": "Number of occurrences.",
-                "last_occurrence_date": "End date of recurrence.",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key."
+                },
+                "appointment_id": {
+                    "type": "INTEGER",
+                    "description": "Foreign Key (FK) → appointment.id"
+                },
+                "recurrence_type_code": {
+                    "type": "VARCHAR",
+                    "description": "Frequency (daily, weekly, monthly)."
+                },
+                "occurrence_count": {
+                    "type": "INTEGER",
+                    "description": "Number of occurrences."
+                },
+                "last_occurrence_date": {
+                    "type": "DATE",
+                    "description": "End date of recurrence."
+                },
             },
             "join_hint": "appointment.id = appointment_recurrence_template.appointment_id",
             "relationship": "One appointment has one recurrence template (1:1)",
@@ -519,27 +918,62 @@ class SchemaRegistry:
                 "Supports nested questions and multiple answer types."
             ),
             "columns": {
-                "id": "Primary Key (PK). Internal identifier used for joins.",
-                "questionnaire_response_id": "External public ID. DO NOT use for joins.",
-                "questionnaire": "Canonical URL of the questionnaire.",
-                "status": "Response status (in-progress, completed, amended).",
-
-                # SUBJECT (POLYMORPHIC)
-                "subject_type": "Type of subject (patient, practitioner).",
-                "subject_id": "ID of subject (join depends on subject_type).",
-
-                # ENCOUNTER LINK
-                "encounter_id": "FK → encounter.id",
-
-                "authored": "Datetime when response was created.",
-
-                # AUTHOR (POLYMORPHIC)
-                "author_reference_type": "Type of author (patient/practitioner).",
-                "author_reference_id": "ID of author.",
-
-                # SOURCE (POLYMORPHIC)
-                "source_reference_type": "Source type (patient/practitioner/device).",
-                "source_reference_id": "Source ID.",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary Key (PK). Internal identifier used for joins."
+                },
+                "questionnaire_response_id": {
+                    "type": "VARCHAR",
+                    "description": "External public ID. DO NOT use for joins."
+                },
+                "questionnaire": {
+                    "type": "VARCHAR",
+                    "description": "Canonical URL of the questionnaire."
+                },
+                "status": {
+                    "type": "VARCHAR",
+                    "description": "Response status (in-progress, completed, amended)."
+                },
+                "subject_type": {
+                    "type": "VARCHAR",
+                    "description": "Type of subject (patient, practitioner)."
+                },
+                "subject_id": {
+                    "type": "INTEGER",
+                    "description": "ID of subject (join depends on subject_type)."
+                },
+                "subject_display": {
+                    "type": "VARCHAR",
+                    "description": "Display name of subject."
+                },
+                "authored": {
+                    "type": "TIMESTAMP",
+                    "description": "Datetime when response was created."
+                },
+                "author_reference_type": {
+                    "type": "VARCHAR",
+                    "description": "Type of author (patient/practitioner)."
+                },
+                "author_reference_id": {
+                    "type": "INTEGER",
+                    "description": "ID of author."
+                },
+                "source_reference_type": {
+                    "type": "VARCHAR",
+                    "description": "Source type (patient/practitioner/device)."
+                },
+                "source_reference_id": {
+                    "type": "INTEGER",
+                    "description": "Source ID."
+                },
+                "created_at": {
+                    "type": "TIMESTAMP",
+                    "description": "Record creation timestamp."
+                },
+                "updated_at": {
+                    "type": "TIMESTAMP",
+                    "description": "Last updated timestamp."
+                },
 
                 "created_at": "Record creation timestamp.",
                 "updated_at": "Last updated timestamp.",
@@ -555,12 +989,30 @@ class SchemaRegistry:
                 "Supports hierarchical/nested questions using parent_item_id."
             ),
             "columns": {
-                "id": "Primary key.",
-                "response_id": "Foreign Key (FK) → questionnaire_response.id",
-                "parent_item_id": "Self-reference for nested questions.",
-                "link_id": "Unique identifier of the question.",
-                "text": "Question text.",
-                "definition": "Question definition reference.",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key."
+                },
+                "response_id": {
+                    "type": "VARCHAR",
+                    "description": "Foreign Key (FK) → questionnaire_response.id"
+                },
+                "parent_item_id": {
+                    "type": "INTEGER",
+                    "description": "Self-reference for nested questions."
+                },
+                "link_id": {
+                    "type": "VARCHAR",
+                    "description": "Unique identifier of the question."
+                },
+                "text": {
+                    "type": "VARCHAR",
+                    "description": "Question text."
+                },
+                "definition": {
+                    "type": "VARCHAR",
+                    "description": "Question definition reference."
+                },
             },
             "join_hint": "questionnaire_response.id = questionnaire_response_item.response_id",
             "relationship": "One response has multiple items (1:N, hierarchical)",
@@ -579,18 +1031,46 @@ class SchemaRegistry:
                 "  value_type = 'integer' → use value_integer"
             ),
             "columns": {
-                "id": "Primary key.",
-                "item_id": "Foreign Key (FK) → questionnaire_response_item.id",
-                "value_type": "Type of answer (string, boolean, integer, etc).",
-
-                "value_string": "Text answer.",
-                "value_boolean": "Boolean answer.",
-                "value_integer": "Integer answer.",
-                "value_decimal": "Decimal answer.",
-                "value_datetime": "Datetime answer.",
-
-                "value_coding_code": "Coded answer value.",
-                "value_coding_display": "Display text of coded value.",
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary key."
+                },
+                "item_id": {
+                    "type": "INTEGER",
+                    "description": "Foreign Key (FK) → questionnaire_response_item.id"
+                },
+                "value_type": {
+                    "type": "VARCHAR",
+                    "description": "Type of answer (string, boolean, integer, etc)."
+                },
+                "value_string": {
+                    "type": "VARCHAR",
+                    "description": "Text answer."
+                },
+                "value_boolean": {
+                    "type": "BOOLEAN",
+                    "description": "Boolean answer."
+                },
+                "value_integer": {
+                    "type": "INTEGER",
+                    "description": "Integer answer."
+                },
+                "value_decimal": {
+                    "type": "DECIMAL",
+                    "description": "Decimal answer."
+                },
+                "value_datetime": {
+                    "type": "DATETIME",
+                    "description": "Datetime answer."
+                },
+                "value_coding_code": {
+                    "type": "VARCHAR",
+                    "description": "Coded answer value."
+                },
+                "value_coding_display": {
+                    "type": "VARCHAR",
+                    "description": "Display text of coded value."
+                },
             },
             "join_hint": "questionnaire_response_item.id = questionnaire_response_answer.item_id",
             "relationship": "One item can have multiple answers (1:N)",

@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status, Request
-from jwt.jwks_client import PyJWKClient
 import jwt
+from jwt.jwks_client import PyJWKClient
 from config.config import Config
 
 config = Config()

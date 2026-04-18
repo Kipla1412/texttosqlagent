@@ -16,8 +16,8 @@ class ChatRequest(BaseModel):
 
 
 @router.post(
-    "/consultagent",
-    summary="Agent Chat Interface",
+    "/texttosqlagent",
+    summary="Text to SQL Agent",
     description="""
 Stream responses from the AI agent.
 
