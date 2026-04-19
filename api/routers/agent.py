@@ -17,27 +17,38 @@ class ChatRequest(BaseModel):
 
 @router.post(
     "/texttosqlagent",
-    summary="Text to SQL Agent",
+    summary="Healthcare Data Query Assistant",
     description="""
-Stream responses from the AI agent.
+AI-powered healthcare data analysis and natural language responses.
 
-This endpoint processes a user message and streams the agent's responses 
-as incremental events. The agent may call tools, generate text tokens, 
-and produce structured outputs.
+This endpoint processes natural language questions about healthcare data,
+executes SQL queries, and returns conversational explanations of results.
 
-Features:
-- Real-time streaming response
+Perfect for healthcare professionals, researchers, and data analysts who need
+quick insights from patient records, appointments, and medical data.
+
+Key Features:
+- Natural language to SQL query conversion
+- Real-time streaming responses
+- Conversational explanations of data insights
 - Session-based conversation context
-- Tool execution support
-- Authenticated user isolation
+- Multi-table healthcare database queries
+- Tool execution with approval workflow
+
+Use Cases:
+- Patient data analysis and reporting
+- Appointment scheduling and management
+- Healthcare provider queries
+- Medical data insights and trends
+- Research and analytics queries
 
 Authentication:
-Requires a valid authenticated user session.
+Requires valid authenticated user session with healthcare data access.
 
 Permission Required:
-`consultagent:chat`
+`texttosqlagent:chat` - Healthcare data query access
 """,
-    dependencies=[Depends(require_permission("consultagent", "chat"))]
+    dependencies=[Depends(require_permission("texttosqlagent", "chat"))]
 )
 async def chat(req: ChatRequest, request: Request):
 

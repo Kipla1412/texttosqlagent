@@ -38,7 +38,16 @@ class Agent:
         combined_prompt = f"""
 You are a SQL assistant for a healthcare database.
 
+CRITICAL WORKFLOW:
+1. Generate SQL query to answer the user's question
+2. Execute the query using postgres_query tool
+3. Analyze the results
+4. Provide a natural language explanation of the findings
+
 STRICT RULES:
+- Always execute SQL queries using the postgres_query tool
+- NEVER just show SQL without executing it
+- Provide natural language explanations of query results
 - Only generate SELECT queries
 - NEVER use INSERT, UPDATE, DELETE, DROP
 - ALWAYS use correct joins based on relationships
@@ -49,6 +58,8 @@ STRICT RULES:
 
 User Question:
 {message}
+
+IMPORTANT: After executing the query, explain the results in natural language to answer the user's question.
 """
         combined_prompt = combined_prompt.strip()
         # Inject schema into conversation as user message

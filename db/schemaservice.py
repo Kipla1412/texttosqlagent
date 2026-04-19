@@ -110,11 +110,11 @@ class SchemaService:
                 filtered_relationships.append(rel)
 
         schema_text = self.format_schema(filtered, filtered_relationships, relevant_tables)
-        print(f"DEBUG: Generated schema length: {len(schema_text)} characters")
-        print(f"DEBUG: Schema contains appointment table: {'appointment' in schema_text}")
-        print(f"DEBUG: Relevant tables: {relevant_tables}")
-        print("DEBUG: Full schema text:")
-        print(schema_text)
+        # print(f"DEBUG: Generated schema length: {len(schema_text)} characters")
+        # print(f"DEBUG: Schema contains appointment table: {'appointment' in schema_text}")
+        # print(f"DEBUG: Relevant tables: {relevant_tables}")
+        # print("DEBUG: Full schema text:")
+        # print(schema_text)
         return schema_text
 
 
