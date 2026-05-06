@@ -3,8 +3,12 @@ import pickle
 import hashlib
 import json
 import numpy as np
-from sentence_transformers import SentenceTransformer
 from numpy.linalg import norm
+from config.config import Config
+from google import genai
+import re
+import time
+import logging
 
 class SchemaSemanticSearch:
 
@@ -12,11 +16,13 @@ class SchemaSemanticSearch:
     Semantic search for database schema tables based on natural language queries.
     Uses sentence embeddings to find semantically similar tables.
     """
-    def __init__(self, schema, cache_path="db/schema_embeddings.pkl"):
+    def __init__(self, schema, config: Config, cache_path="db/schema_embeddinggs.pkl"):
         self.schema = schema
         self.cache_path = cache_path
 
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        # self.embed_fn = self.embed
+
+        self.client = genai.Client(api_key=config.gemini_api_key)
 
         self.tables = list(schema.keys())
 
@@ -27,6 +33,46 @@ class SchemaSemanticSearch:
         else:
             self._build()
             self._save()
+
+    def embed(self, text: str):
+        max_retries = 3
+        base_delay = 1.0
+        
+        for attempt in range(max_retries):
+            try:
+                res = self.client.models.embed_content(
+                    model="gemini-embedding-001",
+                    contents=text
+                )
+                return np.array(res.embeddings[0].values)
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logging.error(f"Failed to embed text after {max_retries} attempts: {e}")
+                    raise
+                
+                delay = base_delay * (2 ** attempt)
+                logging.warning(f"Embedding attempt {attempt + 1} failed, retrying in {delay}s: {e}")
+                time.sleep(delay)
+
+    def embed_batch(self, texts):
+        max_retries = 3
+        base_delay = 1.0
+        
+        for attempt in range(max_retries):
+            try:
+                res = self.client.models.embed_content(
+                    model="gemini-embedding-001",
+                    contents=texts
+                )
+                return np.array([e.values for e in res.embeddings])
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logging.error(f"Failed to embed batch after {max_retries} attempts: {e}")
+                    raise
+                
+                delay = base_delay * (2 ** attempt)
+                logging.warning(f"Batch embedding attempt {attempt + 1} failed, retrying in {delay}s: {e}")
+                time.sleep(delay)
 
     def _compute_schema_hash(self):
         """
@@ -60,9 +106,6 @@ class SchemaSemanticSearch:
         """.strip()
 
     def _build(self):
-        """
-        Build embeddings for all tables in the schema.
-        """
         print("Building schema embeddings...")
 
         self.texts = [
@@ -70,19 +113,27 @@ class SchemaSemanticSearch:
             for table in self.tables
         ]
 
-        embeddings = self.model.encode(self.texts)
+        try:
+            embeddings = self.embed_batch(self.texts)
+            self.embeddings = embeddings / norm(embeddings, axis=1, keepdims=True)
 
-        # normalize embeddings (cosine similarity)
-        self.embeddings = embeddings / norm(embeddings, axis=1, keepdims=True)
-
-        # table name embeddings (for boosting)
-        table_vecs = self.model.encode(self.tables)
-        self.table_name_vecs = table_vecs / norm(table_vecs, axis=1, keepdims=True)
-
+            # table name embeddings
+            # table_vecs = np.array([self.embed(t) for t in self.tables])
+            table_vecs = self.embed_batch(self.tables)
+            self.table_name_vecs = table_vecs / norm(table_vecs, axis=1, keepdims=True)
+            print("Schema embeddings built successfully")
+        except Exception as e:
+            logging.error(f"Failed to build schema embeddings: {e}")
+            print("Warning: Failed to build embeddings, semantic search will be disabled")
+            # Set empty embeddings to prevent crashes
+            self.embeddings = np.zeros((len(self.texts), 768))  # Default embedding size
+            self.table_name_vecs = np.zeros((len(self.tables), 768))
+        
     def _save(self):
         """
         Save embeddings to cache.
         """
+        os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
         with open(self.cache_path, "wb") as f:
             pickle.dump({
                 "tables": self.tables,
@@ -118,22 +169,64 @@ class SchemaSemanticSearch:
     def search(self, query, k=4):
         """
         Search for semantically similar tables based on a natural language query.
+        Falls back to keyword matching if semantic search fails.
         """
-        query_vec = self.model.encode([query])[0]
-        query_vec = query_vec / norm(query_vec)
+        try:
+            query_vec = self.embed(query)
+            query_vec = query_vec / norm(query_vec)
 
-        # similarity score (main + table boost)
-        scores = (
-            0.7 * np.dot(self.embeddings, query_vec) +
-            0.3 * np.dot(self.table_name_vecs, query_vec)
-        )
+            # similarity score (main + table boost)
+            scores = (
+                0.7 * np.dot(self.embeddings, query_vec) +
+                0.3 * np.dot(self.table_name_vecs, query_vec)
+            )
 
-        top_indices = np.argsort(scores)[-k:][::-1]
+            top_indices = np.argsort(scores)[-k:][::-1]
 
-        results = [self.tables[i] for i in top_indices]
+            # results = [self.tables[i] for i in top_indices]
+            results = []
 
-        print(f"Semantic tables for '{query}': {results}")
-        for i in top_indices:
-            print(f"  → {self.tables[i]} (score={scores[i]:.4f})")
+            for i in top_indices:
+                if scores[i] > 0.35:
+                    results.append(self.tables[i])
+
+            print(f"Semantic tables for '{query}': {results}")
+            for i in top_indices:
+                print(f"  → {self.tables[i]} (score={scores[i]:.4f})")
+
+                return results
+        except Exception as e:
+            logging.warning(f"Semantic search failed, falling back to keyword matching: {e}")
+            return self._keyword_fallback_search(query, k)
+    
+    def _keyword_fallback_search(self, query, k=4):
+        """
+        Fallback keyword-based search when semantic search fails.
+        """
+        query = query.lower()
+        matched_tables = []
+        
+        for table in self.tables:
+            table_keywords = [table, table.replace("_", " ")]
+            
+            # match table name
+            if any(keyword in query for keyword in table_keywords):
+                matched_tables.append(table)
+                continue
+            
+            # match columns from schema
+            if table in self.schema:
+                for col in self.schema[table]["columns"]:
+                    col_keywords = [col.lower(), col.replace("_", " ")]
+                    if any(keyword in query for keyword in col_keywords):
+                        matched_tables.append(table)
+                        break
+        
+        # Limit results to k
+        results = matched_tables[:k]
+        
+        print(f"Keyword fallback tables for '{query}': {results}")
+        for table in results:
+            print(f"  → {table} (keyword match)")
 
         return results

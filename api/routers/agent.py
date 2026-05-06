@@ -71,13 +71,44 @@ async def chat(req: ChatRequest, request: Request):
     agent = sessions[user_id]
 
     async def event_stream():
-
         async for event in agent.run(req.message):
-
-            yield json.dumps({
-                "type": event.type.value if hasattr(event.type, "value") else str(event.type),
-                "data": event.data
-            }) + "\n"
+            event_type = event.type.value if hasattr(event.type, "value") else str(event.type)
+            
+            # Debug: Show all event types
+            # print(f"DEBUG: Event received: {event_type}")
+            
+            # Handle specific events with clean formatting
+            if event_type == "tool_call_start":
+                # Tool starting - show what's being executed
+                yield json.dumps({
+                    "type": "tool_start",
+                    "name": event.data.get("name", "unknown"),
+                    "query": event.data.get("arguments", {})
+                }) + "\n"
+                
+            elif event_type == "tool_call_complete":
+                # Tool response - SQL results
+                yield json.dumps({
+                    "type": "tool_result",
+                    "name": event.data.get("name", "unknown"),
+                    "query": event.data.get("arguments", {}),
+                    "results": event.data.get("output", ""),
+                    "success": event.data.get("success", False)
+                }) + "\n"
+                
+            elif event_type == "text_delta":
+                # Assistant streaming response
+                yield json.dumps({
+                    "type": "text_delta",
+                    "message": event.data.get("content", "")
+                }) + "\n"
+                
+            elif event_type == "text_complete":
+                # Assistant complete response
+                yield json.dumps({
+                    "type": "text_complete",
+                    "message": event.data.get("content", "")
+                }) + "\n"
 
     return StreamingResponse(
         event_stream(),

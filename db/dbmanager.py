@@ -1,5 +1,4 @@
-from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, async_sessionmaker
 from sqlalchemy import text
 from config.config import Config
 import logging
@@ -10,12 +9,13 @@ config = Config()
 
 class PostgresConnectionManager:
 
-    _engine: Engine | None = None
+    _engine: AsyncEngine | None = None
+    _session_factory: async_sessionmaker | None = None
 
     @classmethod
-    def get_engine(cls) -> Engine:
+    async def get_engine(cls) -> AsyncEngine:
         """
-        Returns a singleton SQLAlchemy engine instance.
+        Returns a singleton async SQLAlchemy engine instance.
         Uses connection pooling and health checks.
         """
 
@@ -30,7 +30,7 @@ class PostgresConnectionManager:
                 )
 
             try:
-                cls._engine = create_engine(
+                cls._engine = create_async_engine(
                     database_url,
 
                     # connection pool settings
@@ -47,13 +47,45 @@ class PostgresConnectionManager:
                 )
 
                 # test connection
-                with cls._engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
+                async with cls._engine.begin() as conn:
+                    await conn.execute(text("SELECT 1"))
                 
-                logger.info("PostgreSQL engine initialized")
+                # Create session factory
+                cls._session_factory = async_sessionmaker(
+                    cls._engine,
+                    expire_on_commit=False
+                )
+                
+                logger.info("PostgreSQL async engine initialized")
 
             except Exception as e:
                 logger.error(f"Failed to initialize database engine: {e}")
                 raise
 
         return cls._engine
+
+    @classmethod
+    async def get_session(cls):
+        """
+        Returns a database session.
+        """
+        if cls._session_factory is None:
+            await cls.get_engine()
+        return cls._session_factory()
+
+    @classmethod
+    def get_sync_engine(cls):
+        """
+        Fallback method for sync operations.
+        Converts asyncpg URL to psycopg2 for sync operations.
+        """
+        database_url = config.database_url
+        if database_url and "postgresql+asyncpg://" in database_url:
+            # Convert asyncpg URL to psycopg2 for sync operations
+            sync_url = database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+            from sqlalchemy import create_engine
+            return create_engine(sync_url)
+        
+        # Fallback to original sync engine if URL doesn't need conversion
+        from sqlalchemy import create_engine
+        return create_engine(database_url)

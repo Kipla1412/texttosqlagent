@@ -77,14 +77,17 @@
 
 from db.schemaregistry import SchemaRegistry
 from db.semanticsearch import SchemaSemanticSearch
+from config.config import Config
+import re
 
 class SchemaService:
 
     def __init__(self):
         self.schema = SchemaRegistry.get_schema()
         self.relationships = SchemaRegistry.get_relationships()
+        self.config = Config()
 
-        self.semantic = SchemaSemanticSearch(self.schema)
+        self.semantic = SchemaSemanticSearch(self.schema, self.config)
 
     def get_schema_for_question(self, question: str) -> str:
 
@@ -93,7 +96,17 @@ class SchemaService:
         semantic_tables = self.semantic.search(question)
         keyword_tables = self._keyword_match_tables(question)
 
-        relevant_tables = list(set(semantic_tables + keyword_tables))
+        # relevant_tables = list(set(semantic_tables + keyword_tables))
+        relevant_tables = []
+
+        for t in semantic_tables + keyword_tables:
+            if t not in relevant_tables:
+                relevant_tables.append(t)
+
+        for t in semantic_tables + keyword_tables:
+            if t not in relevant_tables:
+                relevant_tables.append(t)
+
         print(f"Final tables used: {relevant_tables}")
 
         filtered = {
@@ -104,7 +117,8 @@ class SchemaService:
         filtered_relationships = []
 
         for rel in self.relationships:
-            tables_in_rel = [t.strip() for t in rel.split() if t.isidentifier()]
+            tables_in_rel = re.findall(r"\b[a-z_]+\b", rel.lower())
+            # tables_in_rel = [t.strip() for t in rel.split() if t.isidentifier()]
 
             if any(t in relevant_tables for t in tables_in_rel):
                 filtered_relationships.append(rel)

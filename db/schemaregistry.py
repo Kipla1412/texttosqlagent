@@ -665,26 +665,6 @@ class SchemaRegistry:
 
     }
 
-    # ENCOUNTER_RELATIONSHIPS = [
-
-    #     # Patient join
-    #     "encounter JOIN patient ON encounter.subject_id = patient.id",
-
-    #     # Practitioner join (via participant)
-    #     "encounter JOIN encounter_participant ON encounter.id = encounter_participant.encounter_id",
-    #     "encounter_participant JOIN practitioner ON encounter_participant.individual_reference = practitioner.id",
-
-    #     # Other relations
-    #     "encounter JOIN encounter_type ON encounter.id = encounter_type.encounter_id",
-    #     "encounter JOIN encounter_diagnosis ON encounter.id = encounter_diagnosis.encounter_id",
-    #     "encounter JOIN encounter_location ON encounter.id = encounter_location.encounter_id",
-    #     "encounter JOIN encounter_reason_code ON encounter.id = encounter_reason_code.encounter_id",
-    #     "encounter JOIN based_on ON encounter.id = based_on.encounter_id",
-        
-    #     # CONDITIONAL JOIN (IMPORTANT)
-    #     "based_on.reference_id maps to external tables depending on reference_type",
-    # ]
-
     ENCOUNTER_RELATIONSHIPS = [
 
         # SUBJECT (POLYMORPHIC)
@@ -974,9 +954,6 @@ class SchemaRegistry:
                     "type": "TIMESTAMP",
                     "description": "Last updated timestamp."
                 },
-
-                "created_at": "Record creation timestamp.",
-                "updated_at": "Last updated timestamp.",
             },
             "join_hint": "Use questionnaire_response.id for joins",
             "role": "Primary table for questionnaire responses",
@@ -1101,6 +1078,251 @@ class SchemaRegistry:
         "If source_reference_type = 'patient' → join patient.id",
         "If source_reference_type = 'practitioner' → join practitioner.id",
     ]
+
+    # VITALS DOMAIN
+    VITALS_SCHEMA: Dict[str, Dict] = {
+
+        "vitals": {
+            "description": (
+                "Stores patient health vitals, activity tracking, sleep metrics, "
+                "heart rate data, biometrics, and wellness information.\n"
+                "Used for fitness tracking, health monitoring, and longitudinal analysis."
+            ),
+
+            "columns": {
+
+                "id": {
+                    "type": "INTEGER",
+                    "description": "Primary Key (PK). Internal identifier used for joins."
+                },
+
+                "vitals_id": {
+                    "type": "INTEGER",
+                    "description": "External public identifier. DO NOT use for joins."
+                },
+
+                "pseudo_id": {
+                    "type": "VARCHAR",
+                    "description": "Pseudonymized patient identifier."
+                },
+
+                "pseudo_id2": {
+                    "type": "VARCHAR",
+                    "description": "Secondary pseudonymized identifier."
+                },
+
+                "user_id": {
+                    "type": "VARCHAR",
+                    "description": "User reference ID."
+                },
+
+                "patient_id": {
+                    "type": "INTEGER",
+                    "description": "Patient reference ID. Join with patient.id"
+                },
+
+                "org_id": {
+                    "type": "VARCHAR",
+                    "description": "Organization identifier."
+                },
+
+                # Activity Metrics
+                "steps": {
+                    "type": "INTEGER",
+                    "description": "Total number of steps walked."
+                },
+
+                "calories_kcal": {
+                    "type": "FLOAT",
+                    "description": "Calories burned in kilocalories."
+                },
+
+                "distance_meters": {
+                    "type": "FLOAT",
+                    "description": "Distance traveled in meters."
+                },
+
+                "total_active_minutes": {
+                    "type": "INTEGER",
+                    "description": "Total active minutes."
+                },
+
+                # Exercise
+                "activity_name": {
+                    "type": "VARCHAR",
+                    "description": "Type of physical activity."
+                },
+
+                "exercise_duration_minutes": {
+                    "type": "FLOAT",
+                    "description": "Exercise duration in minutes."
+                },
+
+                "active_zone_minutes": {
+                    "type": "INTEGER",
+                    "description": "Total active zone minutes."
+                },
+
+                "fatburn_active_zone_minutes": {
+                    "type": "INTEGER",
+                    "description": "Fat burn active zone minutes."
+                },
+
+                "cardio_active_zone_minutes": {
+                    "type": "INTEGER",
+                    "description": "Cardio active zone minutes."
+                },
+
+                "peak_active_zone_minutes": {
+                    "type": "INTEGER",
+                    "description": "Peak active zone minutes."
+                },
+
+                # Heart Metrics
+                "resting_heart_rate": {
+                    "type": "INTEGER",
+                    "description": "Resting heart rate in BPM."
+                },
+
+                "heart_rate": {
+                    "type": "INTEGER",
+                    "description": "Measured heart rate in BPM."
+                },
+
+                "heart_rate_variability": {
+                    "type": "FLOAT",
+                    "description": "Heart rate variability."
+                },
+
+                "stress_management_score": {
+                    "type": "INTEGER",
+                    "description": "Stress management score."
+                },
+
+                # Blood Pressure
+                "blood_pressure_systolic": {
+                    "type": "INTEGER",
+                    "description": "Systolic blood pressure."
+                },
+
+                "blood_pressure_diastolic": {
+                    "type": "INTEGER",
+                    "description": "Diastolic blood pressure."
+                },
+
+                # Sleep
+                "sleep_minutes": {
+                    "type": "INTEGER",
+                    "description": "Total sleep duration in minutes."
+                },
+
+                "rem_sleep_minutes": {
+                    "type": "INTEGER",
+                    "description": "REM sleep duration."
+                },
+
+                "deep_sleep_minutes": {
+                    "type": "INTEGER",
+                    "description": "Deep sleep duration."
+                },
+
+                "light_sleep_minutes": {
+                    "type": "INTEGER",
+                    "description": "Light sleep duration."
+                },
+
+                "awake_minutes": {
+                    "type": "INTEGER",
+                    "description": "Awake duration during sleep."
+                },
+
+                "bed_time": {
+                    "type": "VARCHAR",
+                    "description": "Patient bedtime."
+                },
+
+                "wake_up_time": {
+                    "type": "VARCHAR",
+                    "description": "Patient wake-up time."
+                },
+
+                "deep_sleep_percent": {
+                    "type": "FLOAT",
+                    "description": "Percentage of deep sleep."
+                },
+
+                "rem_sleep_percent": {
+                    "type": "FLOAT",
+                    "description": "Percentage of REM sleep."
+                },
+
+                "light_sleep_percent": {
+                    "type": "FLOAT",
+                    "description": "Percentage of light sleep."
+                },
+
+                "awake_percent": {
+                    "type": "FLOAT",
+                    "description": "Percentage of awake time."
+                },
+
+                # Biometrics
+                "weight_kg": {
+                    "type": "FLOAT",
+                    "description": "Body weight in kilograms."
+                },
+
+                "height_cm": {
+                    "type": "FLOAT",
+                    "description": "Height in centimeters."
+                },
+
+                "age": {
+                    "type": "INTEGER",
+                    "description": "Patient age."
+                },
+
+                "gender": {
+                    "type": "VARCHAR",
+                    "description": "Patient gender."
+                },
+
+                # Metadata
+                "recorded_at": {
+                    "type": "TIMESTAMP",
+                    "description": "Timestamp when vitals were recorded."
+                },
+
+                "date": {
+                    "type": "DATE",
+                    "description": "Vitals record date."
+                },
+
+                "created_at": {
+                    "type": "TIMESTAMP",
+                    "description": "Record creation timestamp."
+                },
+
+                "updated_at": {
+                    "type": "TIMESTAMP",
+                    "description": "Last update timestamp."
+                },
+            },
+
+            "join_hint": "vitals.patient_id = patient.id",
+
+            "relationship": (
+                "Many vitals records belong to one patient (N:1 relationship)."
+            ),
+
+            "query_hint": (
+                "Use this table for wearable analytics, sleep analysis, "
+                "activity tracking, heart rate monitoring, and wellness insights."
+            ),
+
+            "role": "Stores patient wellness and wearable device metrics."
+        }
+    }
 
     # Example queries for common operations
     EXAMPLE_QUERIES = {
@@ -1256,6 +1478,13 @@ class SchemaRegistry:
 
     }
 
+   
+
+    # VITALS RELATIONSHIPS
+    VITALS_RELATIONSHIPS = [
+        "vitals LEFT JOIN patient ON vitals.patient_id = patient.id",
+    ]
+
     # MERGED (FINAL)
     SCHEMA: Dict[str, Dict] = {
         **PATIENT_SCHEMA,
@@ -1263,6 +1492,7 @@ class SchemaRegistry:
         **ENCOUNTER_SCHEMA,
         **APPOINTMENT_SCHEMA,
         **QUESTIONNAIRE_SCHEMA,
+        **VITALS_SCHEMA,
     }
 
     RELATIONSHIPS: List[str] = [
@@ -1271,6 +1501,7 @@ class SchemaRegistry:
         *ENCOUNTER_RELATIONSHIPS,
         *APPOINTMENT_RELATIONSHIPS,
         *QUESTIONNAIRE_RELATIONSHIPS,
+        *VITALS_RELATIONSHIPS,
     ]
 
     @classmethod

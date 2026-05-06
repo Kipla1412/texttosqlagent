@@ -167,7 +167,11 @@ class Config(BaseModel):
 
         return url
 
-    
+    @property
+    def gemini_api_key(self) -> str | None:
+        return os.environ.get("GEMINI_API_KEY")
+        
+        
     @property
     def mlflow_enabled(self) -> bool:
         return os.environ.get("MLFLOW_ENABLED", "true").lower() == "true"

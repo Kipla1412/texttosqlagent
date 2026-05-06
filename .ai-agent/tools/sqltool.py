@@ -32,9 +32,10 @@ Rules:
         super().__init__(config)
         print("Initializing PostgresQueryTool")
 
+        # Create PostgreSQL connection - use sync engine for compatibility
+        self.engine = PostgresConnectionManager.get_sync_engine()
         # Create PostgreSQL connection
-        self.engine = PostgresConnectionManager.get_engine()
-    
+        # self.async_engine = PostgresConnectionManager.get_engine()
     def _clean_query(self, query: str) -> str:
         query = re.sub(r"```.*?```", "", query, flags=re.DOTALL)
         return query.strip().rstrip(";")

@@ -8,7 +8,6 @@ openai
 ddgs
 tiktoken
 fastapi
-websockets
 setuptools
 requests
 httpx
@@ -17,5 +16,6 @@ click
 PyJWT>=2.0.0
 sqlalchemy
 psycopg2-binary
-sentence-transformers
+asyncpg
 authlib
+google-genai
